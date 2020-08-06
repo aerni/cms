@@ -93,6 +93,13 @@ class UpdateBlueprintTest extends TestCase
                     'display' => 'Section One',
                     'fields' => [
                         [
+                            'handle' => 'title',
+                            'field' => [
+                                'type' => 'text',
+                                'required' => true,
+                            ],
+                        ],
+                        [
                             'handle' => 'one-one',
                             'field' => 'somefieldset.somefield',
                             'config' => [
@@ -104,6 +111,18 @@ class UpdateBlueprintTest extends TestCase
                             'field' => [
                                 'type' => 'text',
                                 'foo' => 'bar',
+                            ],
+                        ],
+                    ],
+                ],
+                'sidebar' => [
+                    'fields' => [
+                        [
+                            'handle' => 'slug',
+                            'field' => [
+                                'type' => 'slug',
+                                'localizable' => true,
+                                'required' => true,
                             ],
                         ],
                     ],
@@ -231,6 +250,13 @@ class UpdateBlueprintTest extends TestCase
                     'display' => 'Section One',
                     'fields' => [
                         [
+                            'handle' => 'title',
+                            'field' => [
+                                'type' => 'text',
+                                'required' => true,
+                            ],
+                        ],
+                        [
                             'handle' => 'one-one',
                             'field' => 'somefieldset.somefield',
                             'config' => [
@@ -248,6 +274,18 @@ class UpdateBlueprintTest extends TestCase
                             'field' => [
                                 'type' => 'text',
                                 'width' => 50,
+                            ],
+                        ],
+                    ],
+                ],
+                'sidebar' => [
+                    'fields' => [
+                        [
+                            'handle' => 'slug',
+                            'field' => [
+                                'type' => 'slug',
+                                'localizable' => true,
+                                'required' => true,
                             ],
                         ],
                     ],
