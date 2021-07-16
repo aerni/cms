@@ -9,6 +9,7 @@ class AugmentedTerm extends AbstractAugmented
     public function keys()
     {
         return $this->data->values()->keys()
+            ->merge($this->data->supplements()->keys())
             ->merge($this->commonKeys())
             ->merge($this->blueprintFields()->keys())
             ->unique()->sort()->values()->all();
@@ -49,11 +50,6 @@ class AugmentedTerm extends AbstractAugmented
         return $this->data->queryEntries()->where('site', $this->data->locale());
     }
 
-    protected function entriesCount()
-    {
-        return $this->entries()->count();
-    }
-
     protected function isTerm()
     {
         return true;
@@ -61,6 +57,6 @@ class AugmentedTerm extends AbstractAugmented
 
     protected function permalink()
     {
-        return $this->get('absolute_url');
+        return $this->data->absoluteUrl();
     }
 }

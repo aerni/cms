@@ -1,6 +1,6 @@
 <template>
 
-    <div v-if="hasSelections" class="data-list-bulk-actions">
+    <div v-if="showAlways || hasSelections" class="data-list-bulk-actions">
         <div class="input-group input-group-sm relative z-10">
             <div class="input-group-prepend">
                 <div class="text-grey-60"
@@ -8,10 +8,12 @@
             </div>
 
             <data-list-action
+                v-if="hasSelections"
                 v-for="(action, index) in sortedActions"
                 :key="action.handle"
                 :action="action"
                 :selections="selections.length"
+                :errors="errors"
                 @selected="run"
             >
                 <button
@@ -28,7 +30,6 @@
 
 <script>
 import Actions from './Actions';
-import qs from 'qs';
 
 export default {
 
@@ -40,6 +41,10 @@ export default {
         context: {
             type: Object,
             default: () => {}
+        },
+        showAlways: {
+            type: Boolean,
+            default: false
         }
     },
 
@@ -71,20 +76,15 @@ export default {
                 return;
             }
 
-            let params = {
+            let data = {
                 selections: this.selections,
             };
 
             if (this.context) {
-                params.context = this.context;
+                data.context = this.context;
             }
 
-            let config = {
-                params,
-                paramsSerializer: params => qs.stringify(params, {arrayFormat: 'brackets'})
-            };
-
-            this.$axios.get(this.url, config).then(response => {
+            this.$axios.post(this.url+'/list', data).then(response => {
                 this.actions = response.data;
             });
         },

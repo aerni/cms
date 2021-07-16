@@ -2,13 +2,19 @@
 
 namespace Statamic\Events;
 
+use Statamic\Contracts\Forms\Submission;
+
 class FormSubmitted extends Event
 {
+    public $submission;
+
+    /** @deprecated */
     public $form;
 
-    public function __construct($form)
+    public function __construct(Submission $submission)
     {
-        $this->form = $form;
+        $this->submission = $submission;
+        $this->form = $submission; // deprecated
     }
 
     /**

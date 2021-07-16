@@ -5,6 +5,7 @@ namespace Statamic\Http\Controllers\CP\Fields;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
+use Statamic\Exceptions\DuplicateFieldException;
 use Statamic\Facades;
 use Statamic\Fields\Blueprint;
 use Statamic\Fields\FieldTransformer;
@@ -27,7 +28,7 @@ trait ManagesBlueprints
         })->values();
     }
 
-    private function updateBlueprint(Request $request, Blueprint $blueprint)
+    private function setBlueprintContents(Request $request, Blueprint $blueprint)
     {
         $sections = collect($request->sections)->mapWithKeys(function ($section) {
             return [array_pull($section, 'handle') => [
@@ -36,10 +37,34 @@ trait ManagesBlueprints
             ]];
         })->all();
 
-        $blueprint->setContents(array_filter([
-            'title' => $request->title,
-            'sections' => $sections,
-        ]))->save();
+        $blueprint
+            ->setHidden($request->hidden)
+            ->setContents(array_filter([
+                'title' => $request->title,
+                'sections' => $sections,
+            ]));
+
+        return $blueprint;
+    }
+
+    private function validateUniqueHandles($blueprint)
+    {
+        try {
+            $blueprint->validateUniqueHandles();
+        } catch (DuplicateFieldException $exception) {
+            throw ValidationException::withMessages([
+                'sections' => __('statamic::validation.duplicate_field_handle', ['handle' => $exception->getHandle()]),
+            ]);
+        }
+    }
+
+    private function updateBlueprint($request, $blueprint)
+    {
+        $this->setBlueprintContents($request, $blueprint);
+
+        $this->validateUniqueHandles($blueprint);
+
+        $blueprint->save();
     }
 
     private function sectionFields(array $fields)
@@ -54,6 +79,7 @@ trait ManagesBlueprints
         return [
             'title' => $blueprint->title(),
             'handle' => $blueprint->handle(),
+            'hidden' => $blueprint->hidden(),
             'sections' => $blueprint->sections()->map(function ($section, $i) {
                 return array_merge($this->sectionToVue($section), ['_id' => $i]);
             })->values()->all(),

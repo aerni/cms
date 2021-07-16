@@ -47,6 +47,19 @@ class ProtectionTest extends TestCase
     }
 
     /** @test */
+    public function if_the_data_isnt_protectable_it_doesnt_get_a_scheme()
+    {
+        $this->assertNull($this->protection->scheme());
+
+        $this->protection->setData(new class
+        {
+            //
+        });
+
+        $this->assertNull($this->protection->scheme());
+    }
+
+    /** @test */
     public function sitewide_scheme_comes_from_the_default_setting()
     {
         config(['statamic.protect.default' => 'logged_in']);
@@ -94,7 +107,8 @@ class ProtectionTest extends TestCase
         $state = (object) ['protected' => false];
 
         app(ProtectorManager::class)->extend('test', function ($app) use ($state) {
-            return new class($state) extends Protector {
+            return new class($state) extends Protector
+            {
                 public function __construct($state)
                 {
                     $this->state = $state;

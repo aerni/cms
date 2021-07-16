@@ -45,13 +45,16 @@ class TermRepository implements RepositoryContract
     public function findByUri(string $uri, string $site = null): ?Term
     {
         $collection = Collection::all()
-            ->filter->url()
-            ->first(function ($collection) use ($uri) {
-                return Str::startsWith($uri, $collection->url());
+            ->first(function ($collection) use ($uri, $site) {
+                if (Str::startsWith($uri, $collection->uri($site))) {
+                    return true;
+                }
+
+                return Str::startsWith($uri, '/'.$collection->handle());
             });
 
         if ($collection) {
-            $uri = Str::after($uri, $collection->url());
+            $uri = Str::after($uri, $collection->uri($site) ?? $collection->handle());
         }
 
         $uri = Str::removeLeft($uri, '/');
@@ -62,7 +65,7 @@ class TermRepository implements RepositoryContract
             return null;
         }
 
-        if (! Taxonomy::handleExists($taxonomy)) {
+        if (! $taxonomy = $this->findTaxonomyHandleByUri($taxonomy)) {
             return null;
         }
 
@@ -79,6 +82,7 @@ class TermRepository implements RepositoryContract
         return $term->collection($collection);
     }
 
+    /** @deprecated */
     public function findBySlug(string $slug, string $taxonomy): ?Term
     {
         return $this->query()
@@ -113,6 +117,15 @@ class TermRepository implements RepositoryContract
         return app(Term::class)->slug($slug);
     }
 
+    public function entriesCount(Term $term): int
+    {
+        return $this->store->store($term->taxonomyHandle())
+            ->index('associations')
+            ->items()
+            ->where('value', $term->slug())
+            ->count();
+    }
+
     protected function ensureAssociations()
     {
         Taxonomy::all()->each(function ($taxonomy) {
@@ -125,5 +138,10 @@ class TermRepository implements RepositoryContract
         return [
             Term::class => \Statamic\Taxonomies\Term::class,
         ];
+    }
+
+    private function findTaxonomyHandleByUri($uri)
+    {
+        return $this->stache->store('taxonomies')->index('uri')->items()->flip()->get(Str::ensureLeft($uri, '/'));
     }
 }

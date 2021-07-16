@@ -6,8 +6,8 @@ use Statamic\Data\Services\ContentService;
 use Statamic\Facades\Config;
 use Statamic\Facades\Path;
 use Statamic\Facades\Pattern;
+use Statamic\Facades\Site;
 use Statamic\Support\Str;
-use Stringy\StaticStringy as Stringy;
 
 /**
  * Manipulate URLs.
@@ -79,30 +79,19 @@ class URL
     }
 
     /**
-     * Check if a URL is an acestor of the current URL.
-     *
-     * @param string        $uri
-     * @return bool
+     * Checks if one URL is an ancestor of another.
      */
-    public function isAncestor($parent_uri, $uri = null)
+    public function isAncestorOf($child, $ancestor)
     {
-        // Homepage would always be ancestor
-        // and not what we're looking for here.
-        if ($parent_uri === '/') {
+        $child = Str::before($child, '?');
+        $child = Str::ensureRight($child, '/');
+        $ancestor = Str::ensureRight($ancestor, '/');
+
+        if ($child === $ancestor) {
             return false;
         }
 
-        // We default to the current URL.
-        if ($uri === null) {
-            $uri = self::getCurrent();
-        }
-
-        // Add trailing slashes to ensure we're comparing the whole URI
-        // and not just pieces of it (e.g. /about and /about-me)
-        $uri = Stringy::ensureRight($uri, '/');
-        $parent_uri = Stringy::ensureRight($parent_uri, '/');
-
-        return Pattern::startsWith($uri, $parent_uri);
+        return Str::startsWith($child, $ancestor);
     }
 
     /**
@@ -174,7 +163,7 @@ class URL
     {
         $parsed = parse_url($url);
 
-        $url = $parsed['path'];
+        $url = $parsed['path'] ?? '/';
 
         if (isset($parsed['query'])) {
             $url .= '?'.$parsed['query'];
@@ -231,9 +220,13 @@ class URL
      */
     public function isExternal($url)
     {
+        if (Str::startsWith($url, '/')) {
+            return false;
+        }
+
         return ! Pattern::startsWith(
             Str::ensureRight($url, '/'),
-            self::prependSiteUrl('/')
+            Site::current()->absoluteUrl()
         );
     }
 
@@ -247,34 +240,9 @@ class URL
             return config('app.url');
         }
 
-        $protocol = (! empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443)
-            ? 'https://'
-            : 'http://';
+        $rootUrl = app('request')->root();
 
-        $domain_name = $_SERVER['HTTP_HOST'].'/';
-
-        return $protocol.$domain_name;
-    }
-
-    /**
-     * Build a page URL from a path.
-     *
-     * @param string $path
-     * @return string
-     */
-    public function buildFromPath($path)
-    {
-        $path = Path::makeRelative($path);
-
-        $ext = pathinfo($path)['extension'];
-
-        $path = Path::clean($path);
-
-        $path = preg_replace('/^pages/', '', $path);
-
-        $path = preg_replace('#\/(?:[a-z]+\.)?index\.'.$ext.'$#', '', $path);
-
-        return Str::ensureLeft($path, '/');
+        return Str::ensureRight($rootUrl, '/');
     }
 
     /**

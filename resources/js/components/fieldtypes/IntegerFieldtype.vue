@@ -1,11 +1,12 @@
 <template>
     <text-input
+        ref="input"
         type="number"
-        tabindex="0"
         :name="name"
-        :focus="focus"
+        :focus="config.focus"
         :value="value"
         :is-read-only="isReadOnly"
+        :id="fieldId"
         @input="update"
         @focus="$emit('focus')"
         @blur="$emit('blur')"
@@ -17,8 +18,6 @@
 export default {
 
     mixins: [Fieldtype],
-
-    props: ['focus']
 
 };
 </script>

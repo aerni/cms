@@ -3,11 +3,14 @@
 namespace Tests\Data\Entries;
 
 use Facades\Statamic\Fields\BlueprintRepository;
+use Facades\Statamic\Stache\Repositories\CollectionTreeRepository;
+use Facades\Tests\Factories\EntryFactory;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Mockery;
 use Statamic\Entries\Collection;
 use Statamic\Entries\Entry;
+use Statamic\Events\EntryCreated;
 use Statamic\Events\EntrySaved;
 use Statamic\Events\EntrySaving;
 use Statamic\Facades;
@@ -15,9 +18,8 @@ use Statamic\Facades\User;
 use Statamic\Fields\Blueprint;
 use Statamic\Sites\Site;
 use Statamic\Structures\CollectionStructure;
+use Statamic\Structures\CollectionTree;
 use Statamic\Structures\Page;
-use Statamic\Structures\Tree;
-use Statamic\Support\Arr;
 use Tests\PreventSavingStacheItemsToDisk;
 use Tests\TestCase;
 
@@ -28,13 +30,18 @@ class EntryTest extends TestCase
     /** @test */
     public function it_sets_and_gets_the_locale()
     {
-        $entry = new Entry;
-        $this->assertNull($entry->locale());
+        Facades\Site::setConfig(['sites' => [
+            'foo' => [],
+            'bar' => [],
+        ]]);
 
-        $return = $entry->locale('en');
+        $entry = new Entry;
+        $this->assertEquals('foo', $entry->locale()); // defaults to the default site.
+
+        $return = $entry->locale('bar');
 
         $this->assertEquals($entry, $return);
-        $this->assertEquals('en', $entry->locale());
+        $this->assertEquals('bar', $entry->locale());
     }
 
     /** @test */
@@ -196,31 +203,41 @@ class EntryTest extends TestCase
 
         $this->assertEquals('/blog/foo', $entryEn->uri());
         $this->assertEquals('/blog/foo', $entryEn->url());
+        $this->assertEquals('/blog/foo', $entryEn->urlWithoutRedirect());
         $this->assertEquals('http://domain.com/blog/foo', $entryEn->absoluteUrl());
+        $this->assertEquals('http://domain.com/blog/foo', $entryEn->absoluteUrlWithoutRedirect());
         $this->assertEquals('http://domain.com/amp/blog/foo', $entryEn->ampUrl());
         $this->assertNull($entryEn->redirectUrl());
 
         $this->assertEquals('/le-blog/le-foo', $entryFr->uri());
         $this->assertEquals('/fr/le-blog/le-foo', $entryFr->url());
+        $this->assertEquals('/fr/le-blog/le-foo', $entryFr->urlWithoutRedirect());
         $this->assertEquals('http://domain.com/fr/le-blog/le-foo', $entryFr->absoluteUrl());
+        $this->assertEquals('http://domain.com/fr/le-blog/le-foo', $entryFr->absoluteUrlWithoutRedirect());
         $this->assertEquals('http://domain.com/fr/amp/le-blog/le-foo', $entryFr->ampUrl());
         $this->assertNull($entryFr->redirectUrl());
 
         $this->assertEquals('/das-blog/das-foo', $entryDe->uri());
         $this->assertEquals('/das-blog/das-foo', $entryDe->url());
+        $this->assertEquals('/das-blog/das-foo', $entryDe->urlWithoutRedirect());
         $this->assertEquals('http://domain.de/das-blog/das-foo', $entryDe->absoluteUrl());
+        $this->assertEquals('http://domain.de/das-blog/das-foo', $entryDe->absoluteUrlWithoutRedirect());
         $this->assertEquals('http://domain.de/amp/das-blog/das-foo', $entryDe->ampUrl());
         $this->assertNull($entryDe->redirectUrl());
 
         $this->assertEquals('/blog/redirected', $redirectEntry->uri());
         $this->assertEquals('http://example.com/page', $redirectEntry->url());
+        $this->assertEquals('/blog/redirected', $redirectEntry->urlWithoutRedirect());
         $this->assertEquals('http://example.com/page', $redirectEntry->absoluteUrl());
+        $this->assertEquals('http://domain.com/blog/redirected', $redirectEntry->absoluteUrlWithoutRedirect());
         $this->assertNull($redirectEntry->ampUrl());
         $this->assertEquals('http://example.com/page', $redirectEntry->redirectUrl());
 
         $this->assertEquals('/blog/redirect-404', $redirect404Entry->uri());
         $this->assertEquals('/blog/redirect-404', $redirect404Entry->url());
+        $this->assertEquals('/blog/redirect-404', $redirect404Entry->urlWithoutRedirect());
         $this->assertEquals('http://domain.com/blog/redirect-404', $redirect404Entry->absoluteUrl());
+        $this->assertEquals('http://domain.com/blog/redirect-404', $redirect404Entry->absoluteUrlWithoutRedirect());
         $this->assertEquals('http://domain.com/amp/blog/redirect-404', $redirect404Entry->ampUrl());
         $this->assertEquals(404, $redirect404Entry->redirectUrl());
     }
@@ -229,11 +246,57 @@ class EntryTest extends TestCase
     public function it_gets_the_uri_from_the_structure()
     {
         $structure = $this->partialMock(CollectionStructure::class);
-        $collection = tap((new Collection)->handle('test')->structure($structure))->save();
+        $collection = tap((new Collection)->handle('test')->structure($structure)->routes('{parent_uri}/{slug}'))->save();
         $entry = (new Entry)->collection($collection)->locale('en')->slug('foo');
         $structure->shouldReceive('entryUri')->with($entry)->once()->andReturn('/structured-uri');
 
         $this->assertEquals('/structured-uri', $entry->uri());
+    }
+
+    /** @test */
+    public function entries_in_a_collection_without_a_route_dont_have_a_uri()
+    {
+        $collection = tap((new Collection)->handle('test'))->save();
+        $entry = (new Entry)->collection($collection)->locale('en')->slug('foo');
+
+        $this->assertNull($entry->uri());
+        $this->assertNull($entry->url());
+    }
+
+    /** @test */
+    public function a_localized_entry_without_a_route_for_that_site_doesnt_have_a_uri()
+    {
+        $collection = tap((new Collection)->handle('test')->routes([
+            'en' => '/test/{slug}',
+        ]))->save();
+        $entry = (new Entry)->collection($collection)->locale('fr')->slug('foo');
+
+        $this->assertNull($entry->uri());
+        $this->assertNull($entry->url());
+    }
+
+    /** @test */
+    public function entries_in_a_structured_collection_without_a_route_dont_have_a_uri()
+    {
+        $structure = $this->partialMock(CollectionStructure::class);
+        $collection = tap((new Collection)->handle('test')->structure($structure))->save();
+        $entry = (new Entry)->collection($collection)->locale('en')->slug('foo');
+
+        $this->assertNull($entry->uri());
+        $this->assertNull($entry->url());
+    }
+
+    /** @test */
+    public function a_localized_entry_in_a_structured_collection_without_a_route_for_that_site_doesnt_have_a_uri()
+    {
+        $structure = $this->partialMock(CollectionStructure::class);
+        $collection = tap((new Collection)->handle('test')->structure($structure)->routes([
+            'en' => '/test/{slug}',
+        ]))->save();
+        $entry = (new Entry)->collection($collection)->locale('fr')->slug('foo');
+
+        $this->assertNull($entry->uri());
+        $this->assertNull($entry->url());
     }
 
     /** @test */
@@ -248,7 +311,10 @@ class EntryTest extends TestCase
         $noChildren = tap((new Entry)->id('3')->locale('en')->collection($collection)->slug('nochildren')->set('redirect', '@child'))->save();
 
         $collection->structureContents([
-            'tree' => [
+            'expects_root' => false, // irrelevant. just can't pass an empty array at the moment.
+        ])->save();
+        $collection->structure()->in('en')->tree(
+            [
                 [
                     'entry' => '1',
                     'children' => [
@@ -258,19 +324,22 @@ class EntryTest extends TestCase
                 [
                     'entry' => '3',
                 ],
-            ],
-        ])->save();
+            ]
+        )->save();
 
         $this->assertEquals('/parent', $parent->uri());
         $this->assertEquals('/parent/child', $parent->url());
+        $this->assertEquals('/parent', $parent->urlWithoutRedirect());
         $this->assertEquals('/parent/child', $parent->redirectUrl());
 
         $this->assertEquals('/parent/child', $child->uri());
         $this->assertEquals('/parent/child', $child->url());
+        $this->assertEquals('/parent/child', $child->urlWithoutRedirect());
         $this->assertNull($child->redirectUrl());
 
         $this->assertEquals('/nochildren', $noChildren->uri());
         $this->assertEquals('/nochildren', $noChildren->url());
+        $this->assertEquals('/nochildren', $noChildren->urlWithoutRedirect());
         $this->assertEquals(404, $noChildren->redirectUrl());
     }
 
@@ -435,12 +504,14 @@ class EntryTest extends TestCase
 
         $collection->structureContents([
             'max_depth' => 1,
-            'tree' => [
+        ])->save();
+        $collection->structure()->in('en')->tree(
+            [
                 ['entry' => 'three'],
                 ['entry' => 'one'],
                 ['entry' => 'two'],
-            ],
-        ])->save();
+            ]
+        )->save();
 
         $this->assertEquals(2, $one->order());
         $this->assertEquals(3, $two->order());
@@ -605,9 +676,7 @@ class EntryTest extends TestCase
         $entry = (new Entry)->id('a')->collection(new Collection);
         Facades\Entry::shouldReceive('save')->with($entry);
         Facades\Entry::shouldReceive('taxonomize')->with($entry);
-
-        $blinkStore = $this->mock(\Spatie\Blink\Blink::class)->shouldReceive('forget')->with('a')->once()->getMock();
-        Facades\Blink::shouldReceive('store')->with('structure-page-entries')->once()->andReturn($blinkStore);
+        Facades\Entry::shouldReceive('find')->with('a')->once()->andReturnNull();
 
         $return = $entry->save();
 
@@ -615,9 +684,65 @@ class EntryTest extends TestCase
         Event::assertDispatched(EntrySaving::class, function ($event) use ($entry) {
             return $event->entry === $entry;
         });
+        Event::assertDispatched(EntryCreated::class, function ($event) use ($entry) {
+            return $event->entry === $entry;
+        });
         Event::assertDispatched(EntrySaved::class, function ($event) use ($entry) {
             return $event->entry === $entry;
         });
+    }
+
+    /** @test */
+    public function it_dispatches_entry_created_only_once()
+    {
+        Event::fake();
+
+        $entry = (new Entry)->id('1')->collection(new Collection);
+        Facades\Entry::shouldReceive('save')->with($entry);
+        Facades\Entry::shouldReceive('taxonomize')->with($entry);
+        Facades\Entry::shouldReceive('find')->with('1')->times(3)->andReturn(null, $entry, $entry);
+
+        $entry->save();
+        $entry->save();
+        $entry->save();
+
+        Event::assertDispatched(EntrySaved::class, 3);
+        Event::assertDispatched(EntryCreated::class, 1);
+    }
+
+    /** @test */
+    public function it_saves_quietly()
+    {
+        Event::fake();
+        $entry = (new Entry)->id('a')->collection(new Collection);
+        Facades\Entry::shouldReceive('save')->with($entry);
+        Facades\Entry::shouldReceive('taxonomize')->with($entry);
+        Facades\Entry::shouldReceive('find')->with('a')->once()->andReturnNull();
+
+        $return = $entry->saveQuietly();
+
+        $this->assertTrue($return);
+        Event::assertNotDispatched(EntrySaving::class);
+        Event::assertNotDispatched(EntrySaved::class);
+        Event::assertNotDispatched(EntryCreated::class);
+    }
+
+    /** @test */
+    public function it_clears_blink_caches_when_saving()
+    {
+        $collection = tap(Collection::make('test')->structure(new CollectionStructure))->save();
+        $entry = (new Entry)->id('a')->collection($collection);
+
+        $mock = \Mockery::mock(Facades\Blink::getFacadeRoot())->makePartial();
+        Facades\Blink::swap($mock);
+        $mock->shouldReceive('store')->with('structure-uris')->once()->andReturn(
+            $this->mock(\Spatie\Blink\Blink::class)->shouldReceive('forget')->with('a')->once()->getMock()
+        );
+        $mock->shouldReceive('store')->with('structure-entries')->once()->andReturn(
+            $this->mock(\Spatie\Blink\Blink::class)->shouldReceive('forget')->with('a')->once()->getMock()
+        );
+
+        $entry->save();
     }
 
     /** @test */
@@ -627,6 +752,7 @@ class EntryTest extends TestCase
         $entry = (new Entry)->id('a')->collection(new Collection);
         Facades\Entry::shouldReceive('save')->with($entry);
         Facades\Entry::shouldReceive('taxonomize')->with($entry);
+        Facades\Entry::shouldReceive('find')->with('a')->times(2)->andReturn(null, $entry);
         $callbackOneRan = 0;
         $callbackTwoRan = 0;
 
@@ -673,7 +799,10 @@ class EntryTest extends TestCase
     /** @test */
     public function it_gets_file_contents_for_saving()
     {
+        tap(Collection::make('test'))->save();
+
         $entry = (new Entry)
+            ->collection('test')
             ->id('123')
             ->slug('test')
             ->date('2018-01-01')
@@ -681,6 +810,8 @@ class EntryTest extends TestCase
             ->data([
                 'title' => 'The title',
                 'array' => ['first one', 'second one'],
+                'null' => null,      // this...
+                'empty' => [], // and this should get stripped out because it's the root. there's no origin to fall back to.
                 'content' => 'The content',
             ]);
 
@@ -693,45 +824,151 @@ class EntryTest extends TestCase
             'id' => '123',
             'published' => false,
             'content' => 'The content',
-        ], Arr::removeNullValues($entry->fileData()));
+            'blueprint' => 'test',
+        ], $entry->fileData());
+    }
+
+    /** @test */
+    public function it_gets_file_contents_for_saving_a_localized_entry()
+    {
+        tap(Collection::make('test'))->save();
+
+        $originEntry = $this->mock(Entry::class);
+        $originEntry->shouldReceive('id')->andReturn('123');
+
+        Facades\Entry::shouldReceive('find')->with('123')->andReturn($originEntry);
+        $originEntry->shouldReceive('value')->with('blueprint')->andReturn('test');
+
+        $entry = (new Entry)
+            ->collection('test')
+            ->id('456')
+            ->origin('123')
+            ->slug('test')
+            ->date('2018-01-01')
+            ->published(false)
+            ->data([
+                'title' => 'The title',
+                'array' => ['first one', 'second one'],
+                'null' => null,      // this...
+                'empty' => [], // and this should not get stripped out, otherwise it would fall back to the origin.
+                'content' => 'The content',
+            ]);
+
+        $this->assertEquals([
+            'title' => 'The title',
+            'array' => [
+                'first one',
+                'second one',
+            ],
+            'null' => null,
+            'empty' => [],
+            'id' => '456',
+            'origin' => '123',
+            'published' => false,
+            'content' => 'The content',
+            'blueprint' => 'test',
+        ], $entry->fileData());
+    }
+
+    /** @test */
+    public function the_default_blueprint_is_added_to_the_file_contents_when_one_hasnt_been_explicitly_defined()
+    {
+        BlueprintRepository::shouldReceive('in')->with('collections/test')->andReturn(collect([
+            'default' => (new Blueprint)->setHandle('default'),
+            'another' => (new Blueprint)->setHandle('another'),
+        ]));
+        $collection = tap(Collection::make('test'))->save();
+        $this->assertEquals('default', $collection->entryBlueprint()->handle());
+
+        $entry = (new Entry)->collection('test');
+
+        $this->assertEquals('default', $entry->fileData()['blueprint']);
+    }
+
+    /** @test */
+    public function the_explicit_blueprint_is_added_to_the_file_contents()
+    {
+        BlueprintRepository::shouldReceive('in')->with('collections/test')->andReturn(collect([
+            'default' => (new Blueprint)->setHandle('default'),
+            'another' => (new Blueprint)->setHandle('another'),
+        ]));
+        $collection = tap(Collection::make('test'))->save();
+        $this->assertEquals('default', $collection->entryBlueprint()->handle());
+
+        $entry = (new Entry)->collection('test')->blueprint('another');
+
+        $this->assertEquals('another', $entry->fileData()['blueprint']);
+    }
+
+    /** @test */
+    public function the_inherited_blueprint_is_added_to_the_localized_file_contents()
+    {
+        BlueprintRepository::shouldReceive('in')->with('collections/test')->andReturn(collect([
+            'default' => (new Blueprint)->setHandle('default'),
+            'another' => (new Blueprint)->setHandle('another'),
+        ]));
+        $collection = tap(Collection::make('test'))->save();
+        $this->assertEquals('default', $collection->entryBlueprint()->handle());
+
+        $originEntry = $this->mock(Entry::class);
+        $originEntry->shouldReceive('id')->andReturn('123');
+
+        Facades\Entry::shouldReceive('find')->with('123')->andReturn($originEntry);
+        $originEntry->shouldReceive('value')->with('blueprint')->andReturn('another');
+
+        $entry = (new Entry)
+            ->collection('test')
+            ->origin('123'); // do not set blueprint.
+
+        $this->assertEquals('another', $entry->fileData()['blueprint']);
     }
 
     /** @test */
     public function it_gets_and_sets_the_template()
     {
         $collection = tap(Collection::make('test'))->save();
-        $entry = (new Entry)->collection($collection);
+        $origin = (new Entry)->collection($collection);
+        $entry = (new Entry)->collection($collection)->origin($origin);
 
         // defaults to default
         $this->assertEquals('default', $entry->template());
 
-        // collection level overrides the configured
+        // collection level overrides the default
         $collection->template('foo');
         $this->assertEquals('foo', $entry->template());
 
-        // entry level overrides the collection
-        $return = $entry->template('bar');
-        $this->assertEquals($entry, $return);
+        // origin overrides collection
+        $origin->template('bar');
         $this->assertEquals('bar', $entry->template());
+
+        // entry level overrides the origin
+        $return = $entry->template('baz');
+        $this->assertEquals($entry, $return);
+        $this->assertEquals('baz', $entry->template());
     }
 
     /** @test */
     public function it_gets_and_sets_the_layout()
     {
         $collection = tap(Collection::make('test'))->save();
-        $entry = (new Entry)->collection($collection);
+        $origin = (new Entry)->collection($collection);
+        $entry = (new Entry)->collection($collection)->origin($origin);
 
         // defaults to layout
         $this->assertEquals('layout', $entry->layout());
 
-        // collection level overrides the configured
+        // collection level overrides the default
         $collection->layout('foo');
         $this->assertEquals('foo', $entry->layout());
 
-        // entry level overrides the collection
-        $return = $entry->layout('bar');
-        $this->assertEquals($entry, $return);
+        // origin overrides collection
+        $origin->layout('bar');
         $this->assertEquals('bar', $entry->layout());
+
+        // entry level overrides the origin
+        $return = $entry->layout('baz');
+        $this->assertEquals($entry, $return);
+        $this->assertEquals('baz', $entry->layout());
     }
 
     /** @test */
@@ -786,11 +1023,136 @@ class EntryTest extends TestCase
     {
         Event::fake();
         $entry = (new Entry)->collection(tap(Collection::make('test'))->save());
-        Facades\Entry::shouldReceive('delete')->with($entry);
+
+        $mock = \Mockery::mock(Facades\Entry::getFacadeRoot())->makePartial();
+        Facades\Entry::swap($mock);
+        $mock->shouldReceive('delete')->with($entry);
 
         $return = $entry->delete();
 
         $this->assertTrue($return);
+    }
+
+    /** @test */
+    public function it_prevents_deleting_if_there_are_descendants()
+    {
+        $this->expectExceptionMessage('Cannot delete an entry with localizations.');
+
+        $entry = EntryFactory::collection('test')->create();
+        EntryFactory::collection('test')->origin($entry->id())->create();
+
+        $entry->delete();
+    }
+
+    /** @test */
+    public function it_deletes_descendants()
+    {
+        Event::fake();
+        config(['statamic.sites.sites' => [
+            'en' => [],
+            'fr' => [],
+            'de' => [],
+        ]]);
+
+        $entry = EntryFactory::collection('test')->locale('en')->id('1')->create();
+        $localization = EntryFactory::collection('test')->locale('fr')->id('2')->origin('1')->create();
+        $deeperLocalization = EntryFactory::collection('test')->locale('de')->id('3')->origin('2')->create();
+
+        $this->assertCount(3, Facades\Entry::all());
+        $this->assertCount(2, $entry->descendants());
+        $this->assertCount(1, $localization->descendants());
+
+        $return = $entry->deleteDescendants();
+
+        $this->assertTrue($return);
+        $this->assertCount(1, Facades\Entry::all());
+        $this->assertCount(0, $entry->descendants());
+        $this->assertCount(0, $localization->descendants());
+    }
+
+    /** @test */
+    public function it_detaches_localizations()
+    {
+        Event::fake();
+        config(['statamic.sites.sites' => [
+            'en' => [],
+            'fr' => [],
+            'fr_ca' => [],
+        ]]);
+
+        $english = EntryFactory::collection('test')->locale('en')->id('en')->data([
+            'title' => 'English',
+            'food' => 'Burger',
+            'drink' => 'Water',
+        ])->create();
+
+        $french = EntryFactory::collection('test')->locale('fr')->id('fr')->origin('en')->data([
+            'title' => 'French',
+            'food' => 'Croissant',
+        ])->create();
+
+        $frenchCanadian = EntryFactory::collection('test')->locale('fr_ca')->id('fr_ca')->origin('fr')->data([
+            'title' => 'French Canadian',
+            'food' => 'Poutine',
+        ])->create();
+
+        $this->assertEquals('English', $english->value('title'));
+        $this->assertEquals('Burger', $english->value('food'));
+        $this->assertEquals('Water', $english->value('drink'));
+        $this->assertEquals([
+            'title' => 'English',
+            'food' => 'Burger',
+            'drink' => 'Water',
+        ], $english->data()->all());
+
+        $this->assertEquals($english, $french->origin());
+        $this->assertEquals('French', $french->value('title'));
+        $this->assertEquals('Croissant', $french->value('food'));
+        $this->assertEquals('Water', $french->value('drink'));
+        $this->assertEquals([
+            'title' => 'French',
+            'food' => 'Croissant',
+        ], $french->data()->all());
+
+        $this->assertEquals($french, $frenchCanadian->origin());
+        $this->assertEquals('French Canadian', $frenchCanadian->value('title'));
+        $this->assertEquals('Poutine', $frenchCanadian->value('food'));
+        $this->assertEquals('Water', $frenchCanadian->value('drink'));
+        $this->assertEquals([
+            'title' => 'French Canadian',
+            'food' => 'Poutine',
+        ], $frenchCanadian->data()->all());
+
+        $return = $english->detachLocalizations();
+
+        $this->assertTrue($return);
+        $this->assertEquals('English', $english->value('title'));
+        $this->assertEquals('Burger', $english->value('food'));
+        $this->assertEquals('Water', $english->value('drink'));
+        $this->assertEquals([
+            'title' => 'English',
+            'food' => 'Burger',
+            'drink' => 'Water',
+        ], $english->data()->all());
+
+        $this->assertNull($french->origin());
+        $this->assertEquals('French', $french->value('title'));
+        $this->assertEquals('Croissant', $french->value('food'));
+        $this->assertEquals('Water', $french->value('drink'));
+        $this->assertEquals([
+            'title' => 'French',
+            'food' => 'Croissant',
+            'drink' => 'Water',
+        ], $french->data()->all());
+
+        $this->assertEquals($french, $frenchCanadian->origin());
+        $this->assertEquals('French Canadian', $frenchCanadian->value('title'));
+        $this->assertEquals('Poutine', $frenchCanadian->value('food'));
+        $this->assertEquals('Water', $frenchCanadian->value('drink'));
+        $this->assertEquals([
+            'title' => 'French Canadian',
+            'food' => 'Poutine',
+        ], $frenchCanadian->data()->all());
     }
 
     /** @test */
@@ -799,12 +1161,12 @@ class EntryTest extends TestCase
         $parentPage = $this->mock(Page::class);
         $page = $this->mock(Page::class);
         $page->shouldReceive('parent')->andReturn($parentPage);
-        $tree = $this->partialMock(Tree::class);
+        $tree = $this->partialMock(CollectionTree::class);
         $tree->locale('en');
         $tree->shouldReceive('page')->with('entry-id')->andReturn($page);
+        CollectionTreeRepository::shouldReceive('find', 'en')->andReturn($tree);
 
         $structure = new CollectionStructure;
-        $structure->addTree($tree);
         $collection = tap(Collection::make('test')->structure($structure))->save();
 
         $entry = (new Entry)->id('entry-id')->locale('en')->collection($collection);

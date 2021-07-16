@@ -2,10 +2,13 @@
 
 namespace Statamic\Fieldtypes\Bard;
 
-use Scrumpy\ProseMirrorToHtml\Renderer;
+use ProseMirrorToHtml\Marks\Link as DefaultLinkMark;
+use ProseMirrorToHtml\Nodes\Image as DefaultImageNode;
+use ProseMirrorToHtml\Renderer;
 use Statamic\Fields\Field;
-use Statamic\Fields\Fields;
 use Statamic\Fields\Value;
+use Statamic\Fieldtypes\Bard\ImageNode as CustomImageNode;
+use Statamic\Fieldtypes\Bard\LinkMark as CustomLinkMark;
 use Statamic\Fieldtypes\Text;
 use Statamic\Support\Arr;
 
@@ -15,13 +18,23 @@ class Augmentor
     protected $sets = [];
     protected $includeDisabledSets = false;
     protected $augmentSets = true;
+    protected $withStatamicImageUrls = false;
 
     protected static $customMarks = [];
     protected static $customNodes = [];
+    protected static $replaceMarks = [];
+    protected static $replaceNodes = [];
 
     public function __construct($fieldtype)
     {
         $this->fieldtype = $fieldtype;
+    }
+
+    public function withStatamicImageUrls()
+    {
+        $this->withStatamicImageUrls = true;
+
+        return $this;
     }
 
     public function augment($value, $shallow = false)
@@ -74,7 +87,7 @@ class Augmentor
         return collect($value)->reject(function ($value) {
             return $value['type'] === 'set'
                 && Arr::get($value, 'attrs.enabled', true) === false;
-        });
+        })->values();
     }
 
     protected function addSetIndexes($value)
@@ -91,19 +104,24 @@ class Augmentor
 
     public function convertToHtml($value)
     {
-        $renderer = new Renderer;
-        $renderer->addNodes([
-            ImageNode::class,
-            SetNode::class,
-        ]);
+        $customImageNode = $this->withStatamicImageUrls ? StatamicImageNode::class : CustomImageNode::class;
 
-        $renderer->addNodes(static::$customNodes);
-        $renderer->addMarks(static::$customMarks);
+        $renderer = (new Renderer)
+            ->replaceNode(DefaultImageNode::class, $customImageNode)
+            ->replaceMark(DefaultLinkMark::class, CustomLinkMark::class)
+            ->addNode(SetNode::class)
+            ->addNodes(static::$customNodes)
+            ->addMarks(static::$customMarks);
 
-        return $renderer->render([
-            'type' => 'doc',
-            'content' => $value,
-        ]);
+        foreach (static::$replaceNodes as $searchNode => $replaceNode) {
+            $renderer->replaceNode($searchNode, $replaceNode);
+        }
+
+        foreach (static::$replaceMarks as $searchMark => $replaceMark) {
+            $renderer->replaceMark($searchMark, $replaceMark);
+        }
+
+        return $renderer->render(['type' => 'doc', 'content' => $value]);
     }
 
     public static function addNode($node)
@@ -114,6 +132,16 @@ class Augmentor
     public static function addMark($mark)
     {
         static::$customMarks[] = $mark;
+    }
+
+    public static function replaceNode($searchNode, $replaceNode)
+    {
+        static::$replaceNodes[$searchNode] = $replaceNode;
+    }
+
+    public static function replaceMark($searchMark, $replaceMark)
+    {
+        static::$replaceMarks[$searchMark] = $replaceMark;
     }
 
     protected function convertToSets($html)
@@ -143,11 +171,11 @@ class Augmentor
         $augmentMethod = $shallow ? 'shallowAugment' : 'augment';
 
         return $value->map(function ($set) use ($augmentMethod) {
-            if (! $config = $this->fieldtype->config("sets.{$set['type']}.fields")) {
+            if (! $this->fieldtype->config("sets.{$set['type']}.fields")) {
                 return $set;
             }
 
-            $values = (new Fields($config))->addValues($set)->{$augmentMethod}()->values()->all();
+            $values = $this->fieldtype->fields($set['type'])->addValues($set)->{$augmentMethod}()->values()->all();
 
             return array_merge($values, ['type' => $set['type']]);
         })->all();

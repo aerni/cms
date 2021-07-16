@@ -7,9 +7,11 @@ use League\Flysystem\FileNotFoundException;
 use League\Glide\Server;
 use League\Glide\Signatures\SignatureException;
 use League\Glide\Signatures\SignatureFactory;
+use Statamic\Exceptions\NotFoundHttpException;
 use Statamic\Facades\Asset;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Config;
+use Statamic\Facades\Site;
 use Statamic\Imaging\ImageGenerator;
 use Statamic\Support\Str;
 
@@ -97,6 +99,8 @@ class GlideController extends Controller
 
         $asset = AssetContainer::find($container)->asset($path);
 
+        throw_unless($asset, new NotFoundHttpException);
+
         return $this->createResponse($this->generateBy('asset', $asset));
     }
 
@@ -114,7 +118,7 @@ class GlideController extends Controller
         try {
             return $this->generator->$method($item, $this->request->all());
         } catch (FileNotFoundException $e) {
-            abort(404);
+            throw new NotFoundHttpException;
         }
     }
 
@@ -141,8 +145,10 @@ class GlideController extends Controller
             return;
         }
 
+        $path = Str::after($this->request->url(), Site::current()->absoluteUrl());
+
         try {
-            SignatureFactory::create(Config::getAppKey())->validateRequest($this->request->path(), $_GET);
+            SignatureFactory::create(Config::getAppKey())->validateRequest($path, $_GET);
         } catch (SignatureException $e) {
             abort(400, $e->getMessage());
         }

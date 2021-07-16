@@ -16,8 +16,15 @@ class Redirect extends Tags
 
     public function index()
     {
+        if ($route = $this->params->get('route')) {
+            return $this->redirect(route(
+                $route,
+                $this->params->forget('route')->all()
+            ));
+        }
+
         return $this->redirect(
-            $this->get(['to', 'url'])
+            $this->params->get(['to', 'url'])
         );
     }
 
@@ -35,6 +42,6 @@ class Redirect extends Tags
             return;
         }
 
-        abort(redirect($location, $this->get('response', 302)));
+        abort(redirect($location, $this->params->get('response', 302)));
     }
 }

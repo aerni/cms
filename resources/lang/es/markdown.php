@@ -11,7 +11,7 @@ return [
 ### Este es un h3, y así sucesivamente.
 </code></pre>
 
-<h3>Negritas &amp; Itálicas</h3>
+<h3>Negritas e Itálicas</h3>
 <pre class="language-markdown"><code>Puedes hacer el texto *itálico*, **negrito**, o _**ambos**_.</code></pre>
 
 <h3>Enlaces</h3>
@@ -19,14 +19,14 @@ return [
 
 <h3>Código</h3>
 <p>
-Envuelte tu código con tres tildes inversas (<code>```</code>) en la líneas de antes y después.
+Envuelve tu código con tres tildes inversas (<code>```</code>) en la líneas de antes y después.
 </p>
 
 <pre class="language-markdown"><code>```
-esto: es algo de yaml
+esto: es un poco de yaml
 ```</code></pre>
 
-<p>También puedes añadir código en línea, envolviendo el texto entre <code>`</code> una tilde inversa al principio y una al final.
+<p>También puedes añadir código en línea, envolviendo el texto entre una <code>`</code> tilde inversa al principio y una al final.
 
 <h3>Citado</h3>
 
@@ -49,9 +49,9 @@ esto: es algo de yaml
 
 <h3>Tablas</h3>
 
-<pre class="language-markdown"><code>Primer encabezado  | Segundo encabezado
+<pre class="language-markdown"><code>Encabezado 1  | Encabezado 2
 ------------- | -------------
-Celda de contenido  | Celda de contenido
-Celda de contenido  | Celda de contenido</code></pre>',
+Celda         | Celda
+Celda         | Celda </code></pre>',
 
 ];

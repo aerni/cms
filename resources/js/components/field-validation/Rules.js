@@ -202,7 +202,7 @@ export default [
         example: 'not_in:foo,bar,...'
     },
     {
-        label: 'Not Regex',
+        label: 'Not Regular Expression',
         value: 'not_regex:',
         example: 'not_regex:pattern'
     },
@@ -286,6 +286,10 @@ export default [
     //     value: 'unique:',
     //     example: 'unique:table,column,except,idColumn'
     // },
+    {
+        label: 'Unique Entry Value',
+        value: 'unique_entry_value:{collection},{id},{site}',
+    },
     {
         label: 'URL',
         value: 'url'

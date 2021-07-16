@@ -1,6 +1,9 @@
-{{ foreach:options }}
+{{ foreach:options as="value|label" }}
     <label>
-        <input type="checkbox" name="{{ handle }}[{{ key }}]" {{ old | contains:key ?= "checked" }}>
-        {{ value }}
+        <input type="checkbox" name="{{ handle }}[]" value="{{ value }}"{{ if (old | in_array:value) }} checked{{ /if }}{{ if validate|contains:required }} required{{ /if }}>
+        {{ label }}
     </label>
+    {{ unless inline }}
+        <br>
+    {{ /unless }}
 {{ /foreach:options }}

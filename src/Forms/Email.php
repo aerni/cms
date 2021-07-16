@@ -5,9 +5,12 @@ namespace Statamic\Forms;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
+use Statamic\Contracts\Forms\Submission;
 use Statamic\Facades\Config;
+use Statamic\Facades\GlobalSet;
 use Statamic\Facades\Parse;
-use Statamic\Facades\Site;
+use Statamic\Sites\Site;
+use Statamic\Support\Arr;
 use Statamic\Support\Str;
 
 class Email extends Mailable
@@ -16,17 +19,20 @@ class Email extends Mailable
 
     protected $submission;
     protected $config;
+    protected $site;
 
-    public function __construct(Submission $submission, array $config)
+    public function __construct(Submission $submission, array $config, Site $site)
     {
         $this->submission = $submission;
         $this->config = $this->parseConfig($config);
+        $this->site = $site;
+        $this->locale($site->shortLocale());
     }
 
     public function build()
     {
         $this
-            ->subject($this->config['subject'] ?? __('Form Submission'))
+            ->subject(isset($this->config['subject']) ? __($this->config['subject']) : __('Form Submission'))
             ->addAddresses()
             ->addViews()
             ->addData();
@@ -61,7 +67,7 @@ class Email extends Mailable
         $text = array_get($this->config, 'text');
 
         if (! $text && ! $html) {
-            return $this->automagic();
+            return $this->view('statamic::forms.automagic-email');
         }
 
         if ($text) {
@@ -69,7 +75,8 @@ class Email extends Mailable
         }
 
         if ($html) {
-            $this->view($html);
+            $method = array_get($this->config, 'markdown') ? 'markdown' : 'view';
+            $this->$method($html);
         }
 
         return $this;
@@ -77,27 +84,49 @@ class Email extends Mailable
 
     protected function addData()
     {
-        $data = array_merge($this->submission->toArray(), [
+        $augmented = $this->submission->toAugmentedArray();
+
+        $data = array_merge($augmented, $this->getGlobalsData(), [
+            'config'     => config()->all(),
+            'fields'     => $this->getRenderableFieldData(Arr::except($augmented, ['id', 'date', 'form'])),
             'site_url'   => Config::getSiteUrl(),
             'date'       => now(),
             'now'        => now(),
             'today'      => now(),
-            'site'       => $site = Site::current()->handle(),
-            'locale'     => $site,
+            'site'       => $this->site->handle(),
+            'locale'     => $this->site->handle(),
         ]);
 
         return $this->with($data);
     }
 
-    protected function automagic()
+    protected function getRenderableFieldData($values)
     {
-        $html = collect($this->submission->toArray())->map(function ($value, $key) {
-            $value = is_array($value) ? json_encode($value) : $value;
+        return collect($values)->map(function ($value, $handle) {
+            $field = $value->field();
+            $display = $field->display();
+            $fieldtype = $field->type();
+            $config = $field->config();
 
-            return "<b>{$key}:</b> {$value}";
-        })->implode("<br>\n");
+            return compact('display', 'handle', 'fieldtype', 'config', 'value');
+        });
+    }
 
-        return $this->html($html);
+    private function getGlobalsData()
+    {
+        $data = [];
+
+        foreach (GlobalSet::all() as $global) {
+            if (! $global->existsIn($this->site->handle())) {
+                continue;
+            }
+
+            $global = $global->in($this->site->handle());
+
+            $data[$global->handle()] = $global->toAugmentedArray();
+        }
+
+        return array_merge($data, $data['global'] ?? []);
     }
 
     protected function addresses($addresses)

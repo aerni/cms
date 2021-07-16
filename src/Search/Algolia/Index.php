@@ -43,12 +43,21 @@ class Index extends BaseIndex
 
     public function delete($document)
     {
-        $this->getIndex()->deleteObject($document->id());
+        $this->getIndex()->deleteObject($document->reference());
     }
 
     public function deleteIndex()
     {
         $this->getIndex()->delete();
+    }
+
+    public function update()
+    {
+        $this->getIndex()->clearObjects();
+
+        $this->insertMultiple($this->searchables()->all());
+
+        return $this;
     }
 
     public function getIndex()
@@ -71,7 +80,7 @@ class Index extends BaseIndex
         }
 
         return collect($response['hits'])->map(function ($hit) {
-            $hit['id'] = $hit['objectID'];
+            $hit['reference'] = $hit['objectID'];
 
             return $hit;
         });

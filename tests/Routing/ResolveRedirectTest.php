@@ -129,7 +129,7 @@ class ResolveRedirectTest extends TestCase
         $parent->shouldReceive('isRoot')->andReturnFalse();
         $parent->shouldReceive('pages')->andReturn($pages);
 
-        $this->assertEquals('404', $resolver('@child', $parent));
+        $this->assertSame(404, $resolver('@child', $parent));
     }
 
     /** @test */
@@ -141,5 +141,25 @@ class ResolveRedirectTest extends TestCase
         Facades\Entry::shouldReceive('find')->with('123')->once()->andReturn($entry);
 
         $this->assertEquals('/the-entry', $resolver('entry::123'));
+    }
+
+    /** @test */
+    public function unknown_entry_ids_resolve_to_404()
+    {
+        $resolver = new ResolveRedirect;
+
+        Facades\Entry::shouldReceive('find')->with('123')->once()->andReturnNull();
+
+        $this->assertSame(404, $resolver('entry::123'));
+    }
+
+    /** @test */
+    public function it_can_invoke_the_class_or_call_resolve()
+    {
+        $resolve = $this->partialMock(ResolveRedirect::class);
+
+        $resolve->shouldReceive('resolve')->once()->with('foo', 'bar')->andReturn('hello');
+
+        $this->assertEquals('hello', $resolve('foo', 'bar'));
     }
 }

@@ -12,7 +12,9 @@ use Statamic\Data\ExistsAsFile;
 use Statamic\Data\HasAugmentedData;
 use Statamic\Events\BlueprintDeleted;
 use Statamic\Events\BlueprintSaved;
+use Statamic\Exceptions\DuplicateFieldException;
 use Statamic\Facades;
+use Statamic\Facades\Blink;
 use Statamic\Facades\Path;
 use Statamic\Support\Arr;
 use Statamic\Support\Str;
@@ -24,6 +26,7 @@ class Blueprint implements Augmentable
     protected $handle;
     protected $namespace;
     protected $order;
+    protected $hidden = false;
     protected $initialPath;
     protected $contents;
     protected $fieldsCache;
@@ -70,6 +73,22 @@ class Blueprint implements Augmentable
         return $this->order;
     }
 
+    public function setHidden(?bool $hidden)
+    {
+        if (is_null($hidden)) {
+            $hidden = false;
+        }
+
+        $this->hidden = $hidden;
+
+        return $this;
+    }
+
+    public function hidden()
+    {
+        return $this->hidden;
+    }
+
     public function setInitialPath(string $path)
     {
         $this->initialPath = $path;
@@ -93,18 +112,26 @@ class Blueprint implements Augmentable
 
     public function setContents(array $contents)
     {
-        if ($fields = array_pull($contents, 'fields')) {
-            $contents['sections'] = [
-                'main' => ['fields' => $fields],
-            ];
-        }
-
         $this->contents = $contents;
 
-        return $this->resetFieldsCache();
+        return $this
+            ->normalizeSections()
+            ->resetFieldsCache();
     }
 
     public function contents(): array
+    {
+        return Blink::once($this->contentsBlinkKey(), function () {
+            return $this->getContents();
+        });
+    }
+
+    private function contentsBlinkKey()
+    {
+        return "blueprint-contents-{$this->namespace()}-{$this->handle()}";
+    }
+
+    private function getContents()
     {
         $contents = $this->contents;
 
@@ -117,7 +144,10 @@ class Blueprint implements Augmentable
         }
 
         return array_filter(
-            array_merge(['order' => $this->order], $contents)
+            array_merge([
+                'hide' => $this->hidden,
+                'order' => $this->order,
+            ], $contents)
         );
     }
 
@@ -143,7 +173,7 @@ class Blueprint implements Augmentable
         // Get all the fields, and mark which section they're in.
         $allFields = $sections->flatMap(function ($section, $sectionHandle) {
             return collect($section['fields'] ?? [])->keyBy(function ($field) {
-                return (isset($field['import'])) ? 'import:'.$field['import'] : $field['handle'];
+                return (isset($field['import'])) ? 'import:'.($field['prefix'] ?? null).$field['import'] : $field['handle'];
             })->map(function ($field) use ($sectionHandle) {
                 $field['section'] = $sectionHandle;
 
@@ -153,7 +183,9 @@ class Blueprint implements Augmentable
 
         $importedFields = $allFields->filter(function ($field, $key) {
             return Str::startsWith($key, 'import:');
-        })->keyBy->import->mapWithKeys(function ($field, $partial) {
+        })->keyBy(function ($field) {
+            return ($field['prefix'] ?? null).$field['import'];
+        })->mapWithKeys(function ($field, $partial) {
             return (new Fields([$field]))->all()->map(function ($field) use ($partial) {
                 return compact('partial', 'field');
             });
@@ -180,9 +212,8 @@ class Blueprint implements Augmentable
                 $field = ['handle' => $handle, 'field' => $config];
             }
         }
-
         $fields = collect($sections[$section]['fields'] ?? [])->keyBy(function ($field) {
-            return (isset($field['import'])) ? 'import:'.$field['import'] : $field['handle'];
+            return (isset($field['import'])) ? 'import:'.($field['prefix'] ?? null).$field['import'] : $field['handle'];
         });
 
         if (! $exists) {
@@ -207,12 +238,10 @@ class Blueprint implements Augmentable
 
         // Set the field config in it's proper place.
         if (! $imported) {
-            if ($prepend && $exists) {
-                $fields->forget($handle)->prepend($field);
-            } elseif ($prepend && ! $exists) {
-                $fields->prepend($field);
-            } elseif ($exists) {
+            if ($exists) {
                 $fields->put($handle, $field);
+            } elseif (! $exists && $prepend) {
+                $fields->prepend($field);
             } else {
                 $fields->push($field);
             }
@@ -260,6 +289,11 @@ class Blueprint implements Augmentable
     public function hasField($field)
     {
         return $this->fields()->has($field);
+    }
+
+    public function hasSection($section)
+    {
+        return $this->sections()->has($section);
     }
 
     public function hasFieldInSection($field, $section)
@@ -354,6 +388,19 @@ class Blueprint implements Augmentable
         return $this->ensureField($handle, $field, $section, true);
     }
 
+    public function ensureFieldHasConfig($handle, $config)
+    {
+        if (! $this->hasField($handle)) {
+            return $this;
+        }
+
+        foreach ($this->sections()->keys() as $sectionKey) {
+            if ($this->hasFieldInSection($handle, $sectionKey)) {
+                return $this->ensureFieldInSectionHasConfig($handle, $sectionKey, $config);
+            }
+        }
+    }
+
     public function removeField($handle, $section = null)
     {
         if (! $this->hasField($handle)) {
@@ -371,6 +418,17 @@ class Blueprint implements Augmentable
                 return $this->removeFieldFromSection($handle, $sectionKey);
             }
         }
+    }
+
+    public function removeSection($handle)
+    {
+        if (! $this->hasSection($handle)) {
+            return $this;
+        }
+
+        Arr::pull($this->contents['sections'], $handle);
+
+        return $this->resetFieldsCache();
     }
 
     public function removeFieldFromSection($handle, $section)
@@ -392,22 +450,44 @@ class Blueprint implements Augmentable
         return $this->resetFieldsCache();
     }
 
-    protected function validateUniqueHandles()
+    protected function ensureFieldInSectionHasConfig($handle, $section, $config)
     {
-        $handles = $this->sections()->map->contents()->flatMap(function ($contents) {
-            return array_get($contents, 'fields', []);
-        })->map(function ($item) {
-            return $item['handle'] ?? null;
-        })->filter();
+        $fields = collect($this->contents['sections'][$section]['fields'] ?? []);
+
+        // See if field already exists in section.
+        if ($this->hasFieldInSection($handle, $section)) {
+            $fieldKey = $fields->search(function ($field) use ($handle) {
+                return Arr::get($field, 'handle') === $handle;
+            });
+        } else {
+            return $this;
+        }
+
+        // Get existing field config.
+        $existingConfig = Arr::get($this->contents['sections'][$section]['fields'][$fieldKey], 'field', []);
+
+        // Merge in new field config.
+        $this->contents['sections'][$section]['fields'][$fieldKey]['field'] = array_merge($existingConfig, $config);
+
+        return $this->resetFieldsCache();
+    }
+
+    public function validateUniqueHandles()
+    {
+        $fields = $this->fieldsCache ?? new Fields($this->sections()->map->fields()->flatMap->items());
+
+        $handles = $fields->resolveFields()->map->handle();
 
         if ($field = $handles->duplicates()->first()) {
-            throw new \Exception("Duplicate field [{$field}] on blueprint [{$this->handle}].");
+            throw new DuplicateFieldException($field, $this);
         }
     }
 
     protected function resetFieldsCache()
     {
         $this->fieldsCache = null;
+
+        Blink::forget($this->contentsBlinkKey());
 
         return $this;
     }
@@ -433,5 +513,21 @@ class Blueprint implements Augmentable
     public function shallowAugmentedArrayKeys()
     {
         return ['handle', 'title'];
+    }
+
+    protected function normalizeSections()
+    {
+        if ($fields = Arr::pull($this->contents, 'fields')) {
+            $this->contents['sections'] = [
+                'main' => ['fields' => $fields],
+            ];
+        }
+
+        return $this;
+    }
+
+    public function addGqlTypes()
+    {
+        $this->fields()->all()->map->fieldtype()->each->addGqlTypes();
     }
 }

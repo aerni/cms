@@ -33,6 +33,8 @@ class CollectionsController extends CpController
                 'blueprints_url' => cp_route('collections.blueprints.index', $collection->handle()),
                 'scaffold_url' => cp_route('collections.scaffold', $collection->handle()),
                 'deleteable' => User::current()->can('delete', $collection),
+                'editable' => User::current()->can('edit', $collection),
+                'blueprint_editable' => User::current()->can('configure fields'),
             ];
         })->values();
 
@@ -49,23 +51,42 @@ class CollectionsController extends CpController
     {
         $this->authorize('view', $collection, __('You are not authorized to view this collection.'));
 
-        $blueprints = $collection->entryBlueprints()->map(function ($blueprint) {
-            return [
-                'handle' => $blueprint->handle(),
-                'title' => $blueprint->title(),
-            ];
-        });
+        $blueprints = $collection
+            ->entryBlueprints()
+            ->reject->hidden()
+            ->map(function ($blueprint) {
+                return [
+                    'handle' => $blueprint->handle(),
+                    'title' => $blueprint->title(),
+                ];
+            })->values();
 
         $site = $request->site ? Site::get($request->site) : Site::selected();
+
+        $columns = $collection
+            ->entryBlueprint()
+            ->columns()
+            ->setPreferred("collections.{$collection->handle()}.columns")
+            ->rejectUnlisted()
+            ->values();
 
         $viewData = [
             'collection' => $collection,
             'blueprints' => $blueprints,
             'site' => $site->handle(),
+            'columns' => $columns,
             'filters' => Scope::filters('entries', [
                 'collection' => $collection->handle(),
                 'blueprints' => $blueprints->pluck('handle')->all(),
             ]),
+            'sites' => $collection->sites()->map(function ($site) {
+                $site = Site::get($site);
+
+                return [
+                    'handle' => $site->handle(),
+                    'name' => $site->name(),
+                ];
+            })->values()->all(),
         ];
 
         if ($collection->queryEntries()->count() === 0) {
@@ -81,15 +102,6 @@ class CollectionsController extends CpController
         return view('statamic::collections.show', array_merge($viewData, [
             'structure' => $structure,
             'expectsRoot' => $structure->expectsRoot(),
-            'structureSites' => $collection->sites()->map(function ($site) use ($structure) {
-                $tree = $structure->in($site);
-
-                return [
-                    'handle' => $tree->locale(),
-                    'name' => $tree->site()->name(),
-                    'url' => $tree->showUrl(),
-                ];
-            })->values()->all(),
         ]));
     }
 
@@ -128,7 +140,9 @@ class CollectionsController extends CpController
             'layout' => $collection->layout(),
             'amp' => $collection->ampable(),
             'sites' => $collection->sites()->all(),
-            'routes' => $collection->routes()->all(),
+            'routes' => $collection->routes()->unique()->count() === 1
+                ? $collection->routes()->first()
+                : $collection->routes()->all(),
             'mount' => optional($collection->mount())->id(),
         ];
 
@@ -254,7 +268,7 @@ class CollectionsController extends CpController
     protected function makeStructure($collection, $maxDepth, $expectsRoot, $sites)
     {
         if (! $structure = $collection->structure()) {
-            $structure = (new CollectionStructure)->collection($collection);
+            $structure = new CollectionStructure;
         }
 
         return $structure
@@ -423,6 +437,9 @@ class CollectionsController extends CpController
                         'type' => 'entries',
                         'max_items' => 1,
                         'create' => false,
+                        'collections' => Collection::all()->map->handle()->reject(function ($collectionHandle) use ($collection) {
+                            return $collectionHandle === $collection->handle();
+                        })->values()->all(),
                     ],
                     'amp' => [
                         'display' => __('Enable AMP'),

@@ -4,6 +4,7 @@ namespace Statamic\Stache\Repositories;
 
 use Statamic\Contracts\Entries\Entry;
 use Statamic\Contracts\Entries\EntryRepository as RepositoryContract;
+use Statamic\Contracts\Entries\QueryBuilder;
 use Statamic\Entries\EntryCollection;
 use Statamic\Stache\Query\EntryQueryBuilder;
 use Statamic\Stache\Stache;
@@ -39,6 +40,7 @@ class EntryRepository implements RepositoryContract
         return $this->query()->where('id', $id)->first();
     }
 
+    /** @deprecated */
     public function findBySlug(string $slug, string $collection): ?Entry
     {
         return $this->query()
@@ -81,7 +83,7 @@ class EntryRepository implements RepositoryContract
 
     public function query()
     {
-        return new EntryQueryBuilder($this->store);
+        return app(QueryBuilder::class);
     }
 
     public function make(): Entry
@@ -102,7 +104,7 @@ class EntryRepository implements RepositoryContract
     {
         return [
             'title' => 'required',
-            'slug' => 'required|unique_entry_value:'.$collection->handle().',null,'.$site->handle(),
+            'slug' => 'required',
         ];
     }
 
@@ -110,7 +112,7 @@ class EntryRepository implements RepositoryContract
     {
         return [
             'title' => 'required',
-            'slug' => 'required|alpha_dash|unique_entry_value:'.$collection->handle().','.$entry->id().','.$entry->locale(),
+            'slug' => 'required|alpha_dash',
         ];
     }
 
@@ -118,6 +120,7 @@ class EntryRepository implements RepositoryContract
     {
         return [
             Entry::class => \Statamic\Entries\Entry::class,
+            QueryBuilder::class => EntryQueryBuilder::class,
         ];
     }
 }

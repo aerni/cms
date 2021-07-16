@@ -510,13 +510,14 @@ class QueriesConditionsTest extends TestCase
             ->collection(Facades\Collection::make('test'))
             ->set('somefield', 'somevalue');
 
-        $class = new class($value) {
+        $class = new class($value)
+        {
             use QueriesConditions;
             protected $parameters;
 
             public function __construct($value)
             {
-                $this->parameters = new Parameters(['somefield:is' => $value]);
+                $this->params = new Parameters(['somefield:is' => $value]);
             }
 
             public function query($query)
@@ -542,13 +543,14 @@ class QueriesConditionsTest extends TestCase
 
         $values = [$value];
 
-        $class = new class($values) {
+        $class = new class($values)
+        {
             use QueriesConditions;
             protected $parameters;
 
             public function __construct($values)
             {
-                $this->parameters = new Parameters(['somefield:is_in' => $values]);
+                $this->params = new Parameters(['somefield:is_in' => $values]);
             }
 
             public function query($query)
@@ -574,13 +576,14 @@ class QueriesConditionsTest extends TestCase
 
         $values = collect([$value]);
 
-        $class = new class($values) {
+        $class = new class($values)
+        {
             use QueriesConditions;
             protected $parameters;
 
             public function __construct($values)
             {
-                $this->parameters = new Parameters(['somefield:is_in' => $values]);
+                $this->params = new Parameters(['somefield:is_in' => $values]);
             }
 
             public function query($query)
@@ -600,13 +603,14 @@ class QueriesConditionsTest extends TestCase
     {
         $value = new LabeledValue('foo', 'The Foo Label');
 
-        $class = new class($value) {
+        $class = new class($value)
+        {
             use QueriesConditions;
             protected $parameters;
 
             public function __construct($value)
             {
-                $this->parameters = new Parameters(['somefield:is' => $value]);
+                $this->params = new Parameters(['somefield:is' => $value]);
             }
 
             public function query($query)
@@ -628,13 +632,14 @@ class QueriesConditionsTest extends TestCase
 
         $value = new SomeArbitraryTestObject;
 
-        $class = new class($value) {
+        $class = new class($value)
+        {
             use QueriesConditions;
             protected $parameters;
 
             public function __construct($value)
             {
-                $this->parameters = new Parameters(['somefield:is' => $value]);
+                $this->params = new Parameters(['somefield:is' => $value]);
             }
 
             public function query($query)

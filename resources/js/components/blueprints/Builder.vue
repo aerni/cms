@@ -18,11 +18,23 @@
                 </div>
                 <input type="text" name="title" class="input-text" v-model="blueprint.title" autofocus="autofocus">
             </div>
+
+            <div class="form-group">
+                <label class="block">{{ __('Hidden') }}</label>
+                <small class="help-block">{{ __('messages.blueprints_hidden_instructions') }}</small>
+                <div v-if="errors.hidden">
+                    <small class="help-block text-red" v-for="(error, i) in errors.hidden" :key="i" v-text="error" />
+                </div>
+                <toggle-input name="hidden" v-model="blueprint.hidden" />
+            </div>
         </div>
 
         <div class="content mt-5 mb-2" v-if="useSections">
             <h2>{{ __('Tab Sections') }}</h2>
             <p class="max-w-lg">{{ __('messages.tab_sections_instructions') }}</p>
+            <div v-if="errors.sections">
+                <small class="help-block text-red" v-for="(error, i) in errors.sections" :key="i" v-text="error" />
+            </div>
         </div>
 
         <sections
@@ -48,7 +60,8 @@ export default {
         action: String,
         initialBlueprint: Object,
         showTitle: Boolean,
-        useSections: { type: Boolean, default: true }
+        useSections: { type: Boolean, default: true },
+        isFormBlueprint: { type: Boolean, default: false },
     },
 
     data() {
@@ -64,6 +77,10 @@ export default {
             e.preventDefault();
             this.save();
         });
+
+        if (this.isFormBlueprint) {
+            Statamic.$config.set('isFormBlueprint', true);
+        }
     },
 
     watch: {

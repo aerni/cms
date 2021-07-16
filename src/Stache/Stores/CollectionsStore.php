@@ -74,11 +74,19 @@ class CollectionsStore extends BasicStore
         return $value === 'published';
     }
 
-    public function updateEntryUris($collection)
+    public function updateEntryUris($collection, $ids = null)
     {
         Stache::store('entries')
             ->store($collection->handle())
             ->index('uri')
+            ->update();
+    }
+
+    public function updateEntryOrder($collection, $ids = null)
+    {
+        Stache::store('entries')
+            ->store($collection->handle())
+            ->index('order')
             ->update();
     }
 
@@ -90,12 +98,12 @@ class CollectionsStore extends BasicStore
 
         parent::handleFileChanges();
 
-        // TODO: only update urls for structured collection that were modified.
-        Collection::all()->each->updateEntryUris();
+        foreach ($this->modified as $collection) {
+            $collection->updateEntryUris();
 
-        // TODO: only update order indexes for collections that were modified.
-        Collection::all()->filter->orderable()->each(function ($collection) {
-            Stache::store('entries')->store($collection->handle())->index('order')->update();
-        });
+            if ($collection->orderable()) {
+                Stache::store('entries')->store($collection->handle())->index('order')->update();
+            }
+        }
     }
 }

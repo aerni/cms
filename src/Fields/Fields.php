@@ -6,17 +6,20 @@ use Facades\Statamic\Fields\FieldRepository;
 use Facades\Statamic\Fields\FieldsetRepository;
 use Facades\Statamic\Fields\Validator;
 use Illuminate\Support\Collection;
+use Statamic\Facades\Blink;
 
 class Fields
 {
     protected $items;
     protected $fields;
     protected $parent;
+    protected $parentField;
 
-    public function __construct($items = [], $parent = null)
+    public function __construct($items = [], $parent = null, $parentField = null)
     {
         $this
             ->setParent($parent)
+            ->setParentField($parentField)
             ->setItems($items);
     }
 
@@ -28,9 +31,7 @@ class Fields
 
         $this->items = collect($items);
 
-        $this->fields = $this->items->flatMap(function ($config) {
-            return $this->createFields($config);
-        })->keyBy->handle();
+        $this->fields = $this->resolveFields()->keyBy->handle();
 
         return $this;
     }
@@ -45,6 +46,13 @@ class Fields
     public function setParent($parent)
     {
         $this->parent = $parent;
+
+        return $this;
+    }
+
+    public function setParentField($field)
+    {
+        $this->parentField = $field;
 
         return $this;
     }
@@ -73,6 +81,7 @@ class Fields
     {
         return (new static)
             ->setParent($this->parent)
+            ->setParentField($this->parentField)
             ->setItems($this->items)
             ->setFields($this->fields);
     }
@@ -157,6 +166,13 @@ class Fields
         );
     }
 
+    public function resolveFields()
+    {
+        return $this->items->flatMap(function ($config) {
+            return $this->createFields($config);
+        })->values();
+    }
+
     public function createFields(array $config): array
     {
         if (isset($config['import'])) {
@@ -179,7 +195,9 @@ class Fields
 
     protected function newField($handle, $config)
     {
-        return (new Field($handle, $config))->setParent($this->parent);
+        return (new Field($handle, $config))
+            ->setParent($this->parent)
+            ->setParentField($this->parentField);
     }
 
     private function getReferencedField(array $config): Field
@@ -192,16 +210,22 @@ class Fields
             $field->setConfig(array_merge($field->config(), $overrides));
         }
 
-        return $field->setHandle($config['handle']);
+        return $field->setParent($this->parent)->setHandle($config['handle']);
     }
 
     private function getImportedFields(array $config): array
     {
+        $blink = 'blueprint-imported-fields-'.md5(json_encode($config));
+
+        if (Blink::has($blink)) {
+            return Blink::get($blink);
+        }
+
         if (! $fieldset = FieldsetRepository::find($config['import'])) {
             throw new \Exception("Fieldset {$config['import']} not found.");
         }
 
-        $fields = $fieldset->fields()->all();
+        $fields = $fieldset->fields()->all()->each->setParent($this->parent);
 
         if ($overrides = $config['config'] ?? null) {
             $fields = $fields->map(function ($field, $handle) use ($overrides) {
@@ -211,13 +235,19 @@ class Fields
 
         if ($prefix = array_get($config, 'prefix')) {
             $fields = $fields->mapWithKeys(function ($field) use ($prefix) {
+                $field = clone $field;
                 $handle = $prefix.$field->handle();
+                $prefix = $prefix.$field->prefix();
 
-                return [$handle => $field->setHandle($handle)];
+                return [$handle => $field->setHandle($handle)->setPrefix($prefix)];
             });
         }
 
-        return $fields->all();
+        $result = $fields->all();
+
+        Blink::put($blink, $result);
+
+        return $result;
     }
 
     public function meta()
@@ -233,5 +263,10 @@ class Fields
     public function validate($extraRules = [])
     {
         return $this->validator()->withRules($extraRules)->validate();
+    }
+
+    public function toGql()
+    {
+        return $this->fields->map->toGql();
     }
 }

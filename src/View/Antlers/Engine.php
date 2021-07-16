@@ -17,6 +17,12 @@ use Statamic\Tags\TagNotFoundException;
 
 class Engine implements EngineInterface
 {
+    const EXTENSIONS = [
+        'antlers.html',
+        'antlers.php',
+        'antlers.xml',
+    ];
+
     /**
      * The Antlers Parser.
      *
@@ -142,7 +148,7 @@ class Engine implements EngineInterface
         try {
             $tag = app(TagLoader::class)->load($name, [
                 'parser'     => $parser,
-                'parameters' => $parameters,
+                'params'     => $parameters,
                 'content'    => $content,
                 'context'    => $context,
                 'tag'        => $name.':'.$original_method,

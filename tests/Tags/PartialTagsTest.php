@@ -14,12 +14,11 @@ class PartialTagsTest extends TestCase
     {
         parent::setUp();
         $this->withFakeViews();
-        $this->markTestIncomplete();
     }
 
-    private function tag($tag)
+    private function tag($tag, $context = [])
     {
-        return Parse::template($tag, []);
+        return (string) Parse::template($tag, $context);
     }
 
     protected function partialTag($src, $params = '')
@@ -52,9 +51,17 @@ class PartialTagsTest extends TestCase
     }
 
     /** @test */
+    public function gets_partials_with_underscore_prefix_from_partials_directory()
+    {
+        $this->viewShouldReturnRaw('partials.sub._mypartial', 'the partial content');
+
+        $this->assertEquals('the partial content', $this->partialTag('sub.mypartial'));
+    }
+
+    /** @test */
     public function partials_can_contain_front_matter()
     {
-        $this->viewShouldReturnRaw('mypartial', "---\nfoo: bar\n---\nthe partial content with {{ foo }}");
+        $this->viewShouldReturnRaw('mypartial', "---\nfoo: bar\n---\nthe partial content with {{ view:foo }}");
 
         $this->assertEquals(
             'the partial content with bar',
@@ -70,6 +77,17 @@ class PartialTagsTest extends TestCase
         $this->assertEquals(
             'the partial content with bar',
             $this->partialTag('mypartial', 'foo="bar"')
+        );
+    }
+
+    /** @test */
+    public function partials_have_slots_when_used_as_pair()
+    {
+        $this->viewShouldReturnRaw('mypartial', 'before {{ slot }} after');
+
+        $this->assertEquals(
+            'before bar outside after',
+            $this->tag('{{ partial:mypartial }}{{ foo }} outside{{ /partial:mypartial }}', ['foo' => 'bar'])
         );
     }
 

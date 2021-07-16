@@ -11,13 +11,18 @@ class ResolveRedirect
 {
     public function __invoke($redirect, $parent = null)
     {
+        return $this->resolve($redirect, $parent);
+    }
+
+    public function resolve($redirect, $parent = null)
+    {
         if ($redirect === '@child') {
             $redirect = $this->firstChildUrl($parent);
         }
 
         if (Str::startsWith($redirect, 'entry::')) {
             $id = Str::after($redirect, 'entry::');
-            $redirect = Facades\Entry::find($id)->url();
+            $redirect = optional(Facades\Entry::find($id))->url() ?? 404;
         }
 
         return is_numeric($redirect) ? (int) $redirect : $redirect;

@@ -19,17 +19,21 @@ abstract class AddonServiceProvider extends ServiceProvider
     protected $listen = [];
     protected $subscribe = [];
     protected $tags = [];
+    protected $scopes = [];
+    protected $actions = [];
     protected $fieldtypes = [];
     protected $modifiers = [];
     protected $widgets = [];
     protected $policies = [];
     protected $commands = [];
     protected $stylesheets = [];
+    protected $externalStylesheets = [];
     protected $scripts = [];
     protected $externalScripts = [];
     protected $publishables = [];
     protected $routes = [];
     protected $middlewareGroups = [];
+    protected $updateScripts = [];
     protected $viewNamespace;
     protected $publishAfterInstall = true;
     protected $config = true;
@@ -45,6 +49,8 @@ abstract class AddonServiceProvider extends ServiceProvider
             $this
                 ->bootEvents()
                 ->bootTags()
+                ->bootScopes()
+                ->bootActions()
                 ->bootFieldtypes()
                 ->bootModifiers()
                 ->bootWidgets()
@@ -58,6 +64,7 @@ abstract class AddonServiceProvider extends ServiceProvider
                 ->bootTranslations()
                 ->bootRoutes()
                 ->bootMiddleware()
+                ->bootUpdateScripts()
                 ->bootViews()
                 ->bootPublishAfterInstall();
         });
@@ -81,6 +88,24 @@ abstract class AddonServiceProvider extends ServiceProvider
     protected function bootTags()
     {
         foreach ($this->tags as $class) {
+            $class::register();
+        }
+
+        return $this;
+    }
+
+    protected function bootScopes()
+    {
+        foreach ($this->scopes as $class) {
+            $class::register();
+        }
+
+        return $this;
+    }
+
+    protected function bootActions()
+    {
+        foreach ($this->actions as $class) {
             $class::register();
         }
 
@@ -149,6 +174,10 @@ abstract class AddonServiceProvider extends ServiceProvider
             $this->registerStylesheet($path);
         }
 
+        foreach ($this->externalStylesheets as $url) {
+            $this->registerExternalStylesheet($url);
+        }
+
         return $this;
     }
 
@@ -158,9 +187,47 @@ abstract class AddonServiceProvider extends ServiceProvider
             $this->registerScript($path);
         }
 
-        foreach ($this->externalScripts as $path) {
-            $this->registerExternalScript($path);
+        foreach ($this->externalScripts as $url) {
+            $this->registerExternalScript($url);
         }
+
+        return $this;
+    }
+
+    protected function bootConfig()
+    {
+        $filename = $this->getAddon()->slug();
+        $directory = $this->getAddon()->directory();
+        $origin = "{$directory}config/{$filename}.php";
+
+        if (! $this->config || ! file_exists($origin)) {
+            return $this;
+        }
+
+        $this->mergeConfigFrom($origin, $filename);
+
+        $this->publishes([
+            $origin => config_path("{$filename}.php"),
+        ], "{$filename}-config");
+
+        return $this;
+    }
+
+    protected function bootTranslations()
+    {
+        $slug = $this->getAddon()->slug();
+        $directory = $this->getAddon()->directory();
+        $origin = "{$directory}resources/lang";
+
+        if (! $this->translations || ! file_exists($origin)) {
+            return $this;
+        }
+
+        $this->loadTranslationsFrom($origin, $slug);
+
+        $this->publishes([
+            $origin => resource_path("lang/vendor/{$slug}"),
+        ], "{$slug}-translations");
 
         return $this;
     }
@@ -212,7 +279,9 @@ abstract class AddonServiceProvider extends ServiceProvider
                 return [$origin => public_path("vendor/{$package}/{$destination}")];
             });
 
-        $this->publishes($publishables->all(), $this->getAddon()->slug());
+        if ($publishables->isNotEmpty()) {
+            $this->publishes($publishables->all(), $this->getAddon()->slug());
+        }
 
         return $this;
     }
@@ -319,12 +388,23 @@ abstract class AddonServiceProvider extends ServiceProvider
         return $this;
     }
 
+    protected function bootUpdateScripts()
+    {
+        foreach ($this->updateScripts as $class) {
+            $class::register($this->getAddon()->package());
+        }
+
+        return $this;
+    }
+
     protected function bootViews()
     {
-        $this->loadViewsFrom(
-            $this->getAddon()->directory().'resources/views',
-            $this->viewNamespace ?? $this->getAddon()->packageName()
-        );
+        if (file_exists($this->getAddon()->directory().'resources/views')) {
+            $this->loadViewsFrom(
+                $this->getAddon()->directory().'resources/views',
+                $this->viewNamespace ?? $this->getAddon()->packageName()
+            );
+        }
 
         return $this;
     }
@@ -356,6 +436,11 @@ abstract class AddonServiceProvider extends ServiceProvider
         ], $this->getAddon()->slug());
 
         Statamic::style($name, $filename);
+    }
+
+    public function registerExternalStylesheet(string $url)
+    {
+        Statamic::externalStyle($url);
     }
 
     protected function schedule($schedule)
@@ -392,6 +477,10 @@ abstract class AddonServiceProvider extends ServiceProvider
     protected function bootPublishAfterInstall()
     {
         if (! $this->publishAfterInstall) {
+            return $this;
+        }
+
+        if (empty($this->scripts) && empty($this->stylesheets)) {
             return $this;
         }
 

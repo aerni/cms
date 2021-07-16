@@ -1,7 +1,7 @@
 <template>
 
     <div>
-        <breadcrumb :url="taxonomyUrl" :title="taxonomyTitle" />
+        <breadcrumb v-if="breadcrumbs" :url="breadcrumbs[1].url" :title="breadcrumbs[1].text" />
 
         <div class="flex items-center mb-3">
             <h1 class="flex-1">
@@ -18,15 +18,20 @@
             </div>
 
             <div class="hidden md:flex items-center">
-                <button
+
+                <save-button-options
                     v-if="!readOnly"
-                    :class="{
-                        'btn': revisionsEnabled,
-                        'btn-primary': ! revisionsEnabled,
-                    }"
-                    :disabled="!canSave"
-                    @click.prevent="save"
-                    v-text="saveText" />
+                    :show-options="!revisionsEnabled"
+                    :button-class="saveButtonClass"
+                    :preferences-prefix="preferencesPrefix"
+                >
+                    <button
+                        :class="saveButtonClass"
+                        :disabled="!canSave"
+                        @click.prevent="save"
+                        v-text="saveText"
+                    />
+                </save-button-options>
 
                 <button
                     v-if="revisionsEnabled"
@@ -155,11 +160,11 @@
                                     <div
                                         v-for="option in localizations"
                                         :key="option.handle"
-                                        class="text-sm flex items-center -mx-2 px-2 py-1 cursor-pointer hover:bg-grey-20"
-                                        :class="{ 'opacity-50': !option.active }"
+                                        class="text-sm flex items-center -mx-2 px-2 py-1 cursor-pointer"
+                                        :class="option.active ? 'bg-blue-100' : 'hover:bg-grey-20'"
                                         @click="localizationSelected(option)"
                                     >
-                                        <div class="flex-1 flex items-center">
+                                        <div class="flex-1 flex items-center" :class="{ 'line-through': !option.exists }">
                                             <span class="little-dot mr-1" :class="{
                                                 'bg-green': option.published,
                                                 'bg-grey-50': !option.published,
@@ -227,12 +232,19 @@
 
 <script>
 import PublishActions from './PublishActions.vue';
+import SaveButtonOptions from '../publish/SaveButtonOptions';
 import RevisionHistory from '../revision-history/History.vue';
+import HasPreferences from '../data-list/HasPreferences';
 
 export default {
 
+    mixins: [
+        HasPreferences,
+    ],
+
     components: {
         PublishActions,
+        SaveButtonOptions,
         RevisionHistory,
     },
 
@@ -250,8 +262,8 @@ export default {
         initialOriginMeta: Object,
         initialSite: String,
         initialIsWorkingCopy: Boolean,
-        taxonomyTitle: String,
-        taxonomyUrl: String,
+        taxonomyHandle: String,
+        breadcrumbs: Array,
         initialActions: Object,
         method: String,
         amp: Boolean,
@@ -262,6 +274,8 @@ export default {
         initialPermalink: String,
         revisionsEnabled: Boolean,
         preloadedAssets: Array,
+        createAnotherUrl: String,
+        listingUrl: String,
     },
 
     data() {
@@ -291,7 +305,11 @@ export default {
             confirmingPublish: false,
             readOnly: this.initialReadOnly,
             isRoot: this.initialIsRoot,
-            permalink: this.initialPermalink
+            permalink: this.initialPermalink,
+            preferencesPrefix: `taxonomies.${this.taxonomyHandle}`,
+            saveKeyBinding: null,
+            quickSaveKeyBinding: null,
+            quickSave: false
         }
     },
 
@@ -339,7 +357,18 @@ export default {
             if (!this.published && this.initialPublished) return __('Save & Unpublish');
 
             return __('Save');
-        }
+        },
+
+        saveButtonClass() {
+            return {
+                'btn': this.revisionsEnabled,
+                'btn-primary': ! this.revisionsEnabled,
+            };
+        },
+
+        afterSaveOption() {
+            return this.getPreference('after_save');
+        },
 
     },
 
@@ -363,13 +392,34 @@ export default {
         },
 
         save() {
-            if (!this.canSave) return;
+            if (! this.canSave) {
+                this.quickSave = false;
+                return;
+            }
 
             this.saving = true;
             this.clearErrors();
 
+            this.runBeforeSaveHook();
+        },
+
+        runBeforeSaveHook() {
+            Statamic.$hooks.run('term.saving', {
+                taxonomy: this.taxonomyHandle,
+                values: this.values,
+                container: this.$refs.container,
+                storeName: this.publishContainer,
+            })
+            .then(this.performSaveRequest)
+            .catch(error => {
+                this.saving = false;
+                this.$toast.error(error || 'Something went wrong');
+            });
+        },
+
+        performSaveRequest() {
             const payload = { ...this.values, ...{
-                blueprint: this.fieldset.handle,
+                _blueprint: this.fieldset.handle,
                 published: this.published,
                 _localized: this.localizedFields,
             }};
@@ -381,7 +431,7 @@ export default {
                 this.isWorkingCopy = true;
                 if (!this.isCreating) this.$toast.success(__('Saved'));
                 this.$refs.container.saved();
-                this.$nextTick(() => this.$emit('saved', response));
+                this.runAfterSaveHook(response);
             }).catch(e => this.handleAxiosError(e));
         },
 
@@ -389,6 +439,36 @@ export default {
             if (this.canPublish) {
                 this.confirmingPublish = true;
             }
+        },
+
+        runAfterSaveHook(response) {
+            Statamic.$hooks
+                .run('term.saved', {
+                    taxonomy: this.taxonomyHandle,
+                    reference: this.initialReference,
+                    response
+                })
+                .then(() => {
+
+                    let nextAction = this.quickSave ? 'continue_editing' : this.afterSaveOption;
+
+                    // If the user has opted to create another entry, redirect them to create page.
+                    if (! this.revisionsEnabled && this.afterSaveOption === 'create_another') {
+                        window.location = this.createAnotherUrl;
+                    }
+
+                    // If the user has opted to go to listing (default/null option), redirect them there.
+                    else if (! this.revisionsEnabled && nextAction === null) {
+                        window.location = this.listingUrl;
+                    }
+
+                    // Otherwise, leave them on the edit form and emit an event.
+                    else {
+                        this.$nextTick(() => this.$emit('saved', response));
+                    }
+
+                    this.quickSave = false;
+                }).catch(e => {});
         },
 
         handleAxiosError(e) {
@@ -514,9 +594,16 @@ export default {
     },
 
     mounted() {
-        this.$keys.bindGlobal(['mod+s'], e => {
+        this.saveKeyBinding = this.$keys.bindGlobal(['mod+return'], e => {
             e.preventDefault();
             if (this.confirmingPublish) return;
+            this.canPublish ? this.confirmPublish() : this.save();
+        });
+
+        this.quickSaveKeyBinding = this.$keys.bindGlobal(['mod+s'], e => {
+            e.preventDefault();
+            if (this.confirmingPublish) return;
+            this.quickSave = true;
             this.canPublish ? this.confirmPublish() : this.save();
         });
 
@@ -525,6 +612,11 @@ export default {
 
     created() {
         window.history.replaceState({}, document.title, document.location.href.replace('created=true', ''));
+    },
+
+    destroyed() {
+        this.saveKeyBinding.destroy();
+        this.quickSaveKeyBinding.destroy();
     }
 
 }
