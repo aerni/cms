@@ -15,10 +15,14 @@ class GetSlugFromPath
         $segments = explode('.', $path);
 
         if ($this->isDate($segments[0])) {
-            return $segments[1];
+            return isset($segments[2])
+                ? "{$segments[1]}-{$segments[2]}"
+                : $segments[1];
         }
 
-        return $segments[0];
+        return isset($segments[1])
+            ? "{$segments[0]}-{$segments[1]}"
+            : $segments[0];
     }
 
     private function isDate($str)
