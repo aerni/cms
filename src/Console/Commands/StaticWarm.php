@@ -168,6 +168,8 @@ class StaticWarm extends Command
             ->merge($this->additionalUris())
             ->unique()
             ->reject(function ($uri) use ($cacher) {
+                Facades\Site::resolveCurrentUrlUsing(fn () => $uri);
+
                 return $cacher->isExcluded($uri);
             })
             ->sort()
