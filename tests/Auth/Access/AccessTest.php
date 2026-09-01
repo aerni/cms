@@ -47,12 +47,12 @@ class AccessTest extends TestCase
     }
 
     #[Test]
-    public function it_requires_a_user_before_restricting_queries()
+    public function it_requires_a_user_before_applying_to_queries()
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('A user must be specified using forUser() before evaluating access.');
 
-        Access::restrictQuery(new FakeQuery(['a']), new FakeResource('a'));
+        Access::applyRulesTo(new FakeQuery(['a']), new FakeResource('a'));
     }
 
     #[Test]
@@ -65,12 +65,12 @@ class AccessTest extends TestCase
     }
 
     #[Test]
-    public function it_requires_a_resource_before_restricting_queries()
+    public function it_requires_a_resource_before_applying_to_queries()
     {
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('A resource instance or class string is required to evaluate access.');
 
-        Access::forUser(null)->restrictQuery(new FakeQuery(['a']), null);
+        Access::forUser(null)->applyRulesTo(new FakeQuery(['a']), null);
     }
 
     #[Test]
@@ -84,9 +84,9 @@ class AccessTest extends TestCase
     {
         $query = new FakeQuery(['a', 'b', 'c']);
 
-        $result = Access::forUser(null)->restrictQuery($query, new FakeResource('a'));
+        Access::forUser(null)->applyRulesTo($query, new FakeResource('a'));
 
-        $this->assertSame(['a', 'b', 'c'], $result->ids());
+        $this->assertSame(['a', 'b', 'c'], $query->ids());
     }
 
     #[Test]
@@ -128,16 +128,33 @@ class AccessTest extends TestCase
     }
 
     #[Test]
-    public function it_restricts_queries_through_matching_rules()
+    public function it_applies_matching_rules_to_queries()
     {
-        Access::register(FakeRestrictRule::class);
+        Access::register(FakeApplyToQueryRule::class);
 
-        $result = Access::forUser(null)->restrictQuery(
-            new FakeQuery(['a', 'b', 'c']),
+        $query = new FakeQuery(['a', 'b', 'c']);
+
+        Access::forUser(null)->applyRulesTo($query, new FakeResource('a'));
+
+        $this->assertSame(['a', 'c'], $query->ids());
+    }
+
+    #[Test]
+    public function it_passes_parent_to_rules_when_applying_to_queries()
+    {
+        Access::register(FakeParentApplyToQueryRule::class);
+
+        $parent = new FakeResource('a', 'shows');
+        $query = new FakeQuery(['a', 'b', 'c']);
+
+        Access::forUser(null)->applyRulesTo(
+            $query,
             new FakeResource('a'),
+            'view',
+            $parent,
         );
 
-        $this->assertSame(['a', 'c'], $result->ids());
+        $this->assertSame(['a'], $query->ids());
     }
 
     #[Test]
@@ -185,6 +202,11 @@ class FakeQuery implements QueryBuilder
     public function ids(): array
     {
         return $this->ids;
+    }
+
+    public function exclude(string $id): void
+    {
+        $this->ids = array_values(array_filter($this->ids, fn ($value) => $value !== $id));
     }
 
     public function without(string $id): self
@@ -242,7 +264,7 @@ class FakeDenyRule extends Rule
     }
 }
 
-class FakeRestrictRule extends Rule
+class FakeApplyToQueryRule extends Rule
 {
     protected static $resource = FakeResource::class;
     protected static $operation = 'view';
@@ -252,9 +274,35 @@ class FakeRestrictRule extends Rule
         return true;
     }
 
-    public function restrictQuery(Context $context, QueryBuilder $query): QueryBuilder
+    public function apply(QueryBuilder $query, Context $context): void
     {
-        return $query->without('b');
+        if ($query instanceof FakeQuery) {
+            $query->exclude('b');
+        }
+    }
+}
+
+class FakeParentApplyToQueryRule extends Rule
+{
+    protected static $resource = FakeResource::class;
+    protected static $operation = 'view';
+
+    public function appliesTo(Context $context): bool
+    {
+        return $context->parent?->collection === 'shows';
+    }
+
+    public function allows(Context $context): bool
+    {
+        return true;
+    }
+
+    public function apply(QueryBuilder $query, Context $context): void
+    {
+        if ($query instanceof FakeQuery) {
+            $query->exclude('b');
+            $query->exclude('c');
+        }
     }
 }
 

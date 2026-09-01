@@ -10,6 +10,7 @@ class Context
         public readonly ?User $user,
         public readonly string $operation,
         public readonly mixed $resource,
+        public readonly mixed $parent = null,
     ) {
     }
 }

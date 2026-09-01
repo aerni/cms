@@ -6,6 +6,8 @@ use Closure;
 use LogicException;
 use Statamic\Contracts\Auth\Access\Rule;
 use Statamic\Contracts\Auth\User;
+use Statamic\Contracts\Entries\Collection;
+use Statamic\Contracts\Entries\Entry;
 use Statamic\Contracts\Query\Builder;
 
 class Manager
@@ -47,29 +49,31 @@ class Manager
         return $rules->every(fn ($rule) => $rule->allows($context));
     }
 
-    public function restrictQuery(Builder $query, mixed $resource, string $operation = 'view'): Builder
+    public function applyRulesTo(Builder $query, mixed $resource, string $operation = 'view', mixed $parent = null): void
     {
-        $context = $this->context($operation, $resource);
+        $context = $this->context($operation, $resource, $parent);
 
         $rules = $this->repository->for($context);
 
         if ($rules->isEmpty()) {
-            return $query;
+            return;
         }
 
-        return $rules->reduce(
-            fn ($query, $rule) => $rule->restrictQuery($context, $query),
-            $query,
-        );
+        $rules->each(fn ($rule) => $rule->apply($query, $context));
     }
 
-    protected function context(string $operation, mixed $resource): Context
+    public function applyToEntry(Builder $query, ?Collection $parent = null): void
+    {
+        $this->applyRulesTo($query, Entry::class, 'view', $parent);
+    }
+
+    protected function context(string $operation, mixed $resource, mixed $parent = null): Context
     {
         if (! is_object($resource) && ! (is_string($resource) && class_exists($resource))) {
             throw new \LogicException('A resource instance or class string is required to evaluate access.');
         }
 
-        return new Context($this->resolveUser(), $operation, $resource);
+        return new Context($this->resolveUser(), $operation, $resource, $parent);
     }
 
     protected function resolveUser(): ?User

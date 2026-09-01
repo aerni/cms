@@ -32,8 +32,7 @@ abstract class Rule implements Contract
         return true;
     }
 
-    public function restrictQuery(Context $context, Builder $query): Builder
+    public function apply(Builder $query, Context $context): void
     {
-        return $query;
     }
 }
