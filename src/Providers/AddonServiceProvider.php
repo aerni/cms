@@ -13,6 +13,7 @@ use Illuminate\Support\Reflector;
 use Illuminate\Support\ServiceProvider;
 use Statamic\Actions\Action;
 use Statamic\Addons\Manifest;
+use Statamic\Auth\Access\Rule;
 use Statamic\Dictionaries\Dictionary;
 use Statamic\Exceptions\NotBootedException;
 use Statamic\Facades\Addon;
@@ -59,6 +60,11 @@ abstract class AddonServiceProvider extends ServiceProvider
      * @var list<class-string<Action>>
      */
     protected $actions = [];
+
+    /**
+     * @var list<class-string<Rule>>
+     */
+    protected $accessRules = [];
 
     /**
      * @var list<class-string<Dictionary>>
@@ -201,6 +207,7 @@ abstract class AddonServiceProvider extends ServiceProvider
                 ->bootTags()
                 ->bootScopes()
                 ->bootActions()
+                ->bootAccessRules()
                 ->bootDictionaries()
                 ->bootFieldtypes()
                 ->bootModifiers()
@@ -329,6 +336,19 @@ abstract class AddonServiceProvider extends ServiceProvider
             ->unique();
 
         foreach ($actions as $class) {
+            $class::register();
+        }
+
+        return $this;
+    }
+
+    protected function bootAccessRules()
+    {
+        $rules = collect($this->accessRules)
+            ->merge($this->autoloadFilesFromFolder('Access', Rule::class))
+            ->unique();
+
+        foreach ($rules as $class) {
             $class::register();
         }
 

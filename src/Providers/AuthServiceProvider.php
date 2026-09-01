@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Statamic\Auth\Access\Manager as AccessManager;
 use Statamic\Auth\Passwords\PasswordBrokerManager;
 use Statamic\Auth\PermissionCache;
 use Statamic\Auth\Permissions;
@@ -93,6 +94,8 @@ class AuthServiceProvider extends ServiceProvider
         $this->app->singleton(PermissionCache::class, function ($app) {
             return new PermissionCache;
         });
+
+        $this->app->singleton(AccessManager::class);
 
         $this->app->singleton(TwoFactorAuthenticationProviderContract::class, TwoFactorAuthenticationProvider::class);
 

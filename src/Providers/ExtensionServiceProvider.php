@@ -8,6 +8,7 @@ use Illuminate\Support\ServiceProvider;
 use Statamic\Actions;
 use Statamic\Actions\Action;
 use Statamic\Addons\Manifest;
+use Statamic\Auth\Access\Rule;
 use Statamic\Dictionaries;
 use Statamic\Dictionaries\Dictionary;
 use Statamic\Fields\Fieldtype;
@@ -153,6 +154,10 @@ class ExtensionServiceProvider extends ServiceProvider
         'inFuture' => 'isFuture',
         'inPast' => 'isPast',
         'as' => 'alias',
+    ];
+
+    protected $accessRules = [
+        //
     ];
 
     protected $scopes = [
@@ -301,6 +306,11 @@ class ExtensionServiceProvider extends ServiceProvider
                 'directory' => 'Actions',
                 'extensions' => $this->actions,
             ],
+            'access' => [
+                'class' => Rule::class,
+                'directory' => 'Access',
+                'extensions' => $this->accessRules,
+            ],
             'dictionaries' => [
                 'class' => Dictionary::class,
                 'directory' => 'Dictionaries',
@@ -344,7 +354,7 @@ class ExtensionServiceProvider extends ServiceProvider
     protected function registerBindingAlias($key, $class)
     {
         return $this->app->bind('statamic.'.$key, function ($app) use ($class) {
-            return $app['statamic.extensions'][$class];
+            return $app['statamic.extensions']->get($class, collect());
         });
     }
 
