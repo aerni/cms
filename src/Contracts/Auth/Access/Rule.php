@@ -17,7 +17,7 @@ interface Rule
     /**
      * The operation this rule handles (e.g. view, edit, delete).
      */
-    public function operation(): string;
+    public static function operation(): string;
 
     /**
      * Determine whether this rule applies to the given context.

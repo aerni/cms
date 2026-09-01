@@ -195,15 +195,8 @@ class FakeQuery implements QueryBuilder
 
 class FakeAllowRule extends Rule
 {
-    public static function resource(): string
-    {
-        return FakeResource::class;
-    }
-
-    public function operation(): string
-    {
-        return 'view';
-    }
+    protected static $resource = FakeResource::class;
+    protected static $operation = 'view';
 
     public function allows(Context $context): bool
     {
@@ -213,15 +206,8 @@ class FakeAllowRule extends Rule
 
 class FakeEditOnlyRule extends Rule
 {
-    public static function resource(): string
-    {
-        return FakeResource::class;
-    }
-
-    public function operation(): string
-    {
-        return 'edit';
-    }
+    protected static $resource = FakeResource::class;
+    protected static $operation = 'edit';
 
     public function allows(Context $context): bool
     {
@@ -231,15 +217,8 @@ class FakeEditOnlyRule extends Rule
 
 class FakeCollectionSpecificRule extends Rule
 {
-    public static function resource(): string
-    {
-        return FakeResource::class;
-    }
-
-    public function operation(): string
-    {
-        return 'view';
-    }
+    protected static $resource = FakeResource::class;
+    protected static $operation = 'view';
 
     public function appliesTo(Context $context): bool
     {
@@ -254,15 +233,8 @@ class FakeCollectionSpecificRule extends Rule
 
 class FakeDenyRule extends Rule
 {
-    public static function resource(): string
-    {
-        return FakeResource::class;
-    }
-
-    public function operation(): string
-    {
-        return 'view';
-    }
+    protected static $resource = FakeResource::class;
+    protected static $operation = 'view';
 
     public function allows(Context $context): bool
     {
@@ -272,15 +244,8 @@ class FakeDenyRule extends Rule
 
 class FakeRestrictRule extends Rule
 {
-    public static function resource(): string
-    {
-        return FakeResource::class;
-    }
-
-    public function operation(): string
-    {
-        return 'view';
-    }
+    protected static $resource = FakeResource::class;
+    protected static $operation = 'view';
 
     public function allows(Context $context): bool
     {
@@ -295,15 +260,8 @@ class FakeRestrictRule extends Rule
 
 class FakeContractRule extends Rule
 {
-    public static function resource(): string
-    {
-        return FakeResourceContract::class;
-    }
-
-    public function operation(): string
-    {
-        return 'view';
-    }
+    protected static $resource = FakeResourceContract::class;
+    protected static $operation = 'view';
 
     public function allows(Context $context): bool
     {
@@ -313,15 +271,8 @@ class FakeContractRule extends Rule
 
 class FakePermissionAwareRule extends Rule
 {
-    public static function resource(): string
-    {
-        return FakeResource::class;
-    }
-
-    public function operation(): string
-    {
-        return 'view';
-    }
+    protected static $resource = FakeResource::class;
+    protected static $operation = 'view';
 
     public function allows(Context $context): bool
     {

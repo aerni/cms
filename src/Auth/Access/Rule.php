@@ -11,6 +11,22 @@ abstract class Rule implements Contract
 {
     use HasHandle, RegistersItself;
 
+    /** @var class-string */
+    protected static $resource;
+
+    /** @var string */
+    protected static $operation;
+
+    public static function resource(): string
+    {
+        return static::$resource;
+    }
+
+    public static function operation(): string
+    {
+        return static::$operation;
+    }
+
     public function appliesTo(Context $context): bool
     {
         return true;

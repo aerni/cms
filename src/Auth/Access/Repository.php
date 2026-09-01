@@ -43,7 +43,7 @@ class Repository
     {
         return $this->all()
             ->filter(fn (Rule $rule) => $this->resources($context->resource)->contains($rule::resource()))
-            ->filter(fn (Rule $rule) => $rule->operation() === $context->operation)
+            ->filter(fn (Rule $rule) => $rule::operation() === $context->operation)
             ->filter(fn (Rule $rule) => $rule->appliesTo($context))
             ->values();
     }
