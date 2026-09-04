@@ -2,8 +2,6 @@
 
 namespace Statamic\Search;
 
-use Statamic\Contracts\Entries\Entry;
-use Statamic\Contracts\Query\QueryResource;
 use Statamic\Contracts\Search\Result;
 use Statamic\Data\DataCollection;
 use Statamic\Query\Concerns\FakesQueries;
@@ -11,28 +9,17 @@ use Statamic\Query\IteratorBuilder as BaseQueryBuilder;
 use Statamic\Search\Searchables\Providers;
 use Statamic\Support\Str;
 
-abstract class QueryBuilder extends BaseQueryBuilder implements QueryResource
+abstract class QueryBuilder extends BaseQueryBuilder
 {
     use FakesQueries;
 
     protected $query;
     protected $index;
     protected $withData = true;
-    protected array $collections = [];
 
     public function __construct(Index $index)
     {
         $this->index = $index;
-    }
-
-    public function subject(): string
-    {
-        return Entry::class;
-    }
-
-    public function collections(): array
-    {
-        return $this->collections;
     }
 
     public function query($query)
@@ -54,26 +41,6 @@ abstract class QueryBuilder extends BaseQueryBuilder implements QueryResource
         $this->withData = false;
 
         return $this;
-    }
-
-    public function where($column, $operator = null, $value = null, $boolean = 'and')
-    {
-        if ($column === 'collection') {
-            $this->collections[] = is_null($value) ? $operator : $value;
-
-            return parent::where($column, $operator, $value, $boolean);
-        }
-
-        return parent::where($column, $operator, $value, $boolean);
-    }
-
-    public function whereIn($column, $values, $boolean = 'and')
-    {
-        if (in_array($column, ['collection', 'collections'])) {
-            $this->collections = array_merge($this->collections, $values);
-        }
-
-        return parent::whereIn($column, $values, $boolean);
     }
 
     public function get($columns = ['*'])
