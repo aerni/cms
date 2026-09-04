@@ -6,8 +6,11 @@ use Illuminate\Support\Collection;
 use LogicException;
 use PHPUnit\Framework\Attributes\Test;
 use Statamic\Auth\Access\Context\Context;
+use Statamic\Contracts\Entries\Entry;
 use Statamic\Contracts\Query\Builder as QueryBuilder;
 use Statamic\Contracts\Query\QueryResource;
+use Statamic\Facades\Collection as CollectionFacade;
+use Statamic\Facades\Entry as EntryFacade;
 use Tests\TestCase;
 
 class ContextTest extends TestCase
@@ -15,31 +18,44 @@ class ContextTest extends TestCase
     #[Test]
     public function it_resolves_context_for_a_resource()
     {
-        $resource = new ContextFakeResource;
+        CollectionFacade::make('shows')->save();
+        $entry = EntryFacade::make()->collection('shows')->slug('a');
 
-        $context = Context::fromResource($resource, 'view');
+        $context = Context::fromResource($entry, 'view');
 
         $this->assertNull($context->user);
         $this->assertSame('view', $context->operation);
-        $this->assertSame(ContextFakeResource::class, $context->subject);
+        $this->assertSame($entry::class, $context->subject);
+        $this->assertTrue(is_a($context->subject, Entry::class, true));
         $this->assertInstanceOf(Collection::class, $context->data);
-        $this->assertSame([], $context->data->all());
+        $this->assertSame(['shows'], $context->data->get('handles'));
+        $this->assertSame(['handles' => ['shows']], $context->data->all());
     }
 
     #[Test]
     public function it_merges_additional_data_onto_the_context()
     {
-        $context = Context::fromResource(
-            new ContextFakeResource,
-            'view',
-            data: ['site' => 'en', 'group' => 'shows'],
-        );
+        CollectionFacade::make('shows')->save();
+        $entry = EntryFacade::make()->collection('shows')->slug('a');
+
+        $context = Context::fromResource($entry, 'view', data: ['site' => 'en']);
 
         $this->assertSame([
+            'handles' => ['shows'],
             'site' => 'en',
-            'group' => 'shows',
         ], $context->data->all());
         $this->assertSame('en', $context->data->get('site'));
+    }
+
+    #[Test]
+    public function it_allows_data_to_override_resolved_handles()
+    {
+        CollectionFacade::make('shows')->save();
+        $entry = EntryFacade::make()->collection('shows')->slug('a');
+
+        $context = Context::fromResource($entry, 'view', data: ['handles' => ['movies']]);
+
+        $this->assertSame(['movies'], $context->data->get('handles'));
     }
 
     #[Test]
@@ -50,19 +66,19 @@ class ContextTest extends TestCase
         $context = Context::fromQuery($query, 'view');
 
         $this->assertSame(ContextFakeResource::class, $context->subject);
-        $this->assertSame([], $context->data->all());
+        $this->assertSame([], $context->data->get('handles'));
     }
 
     #[Test]
-    public function it_allows_data_to_be_passed_for_a_query()
+    public function it_allows_data_to_provide_handles_for_a_query()
     {
         $context = Context::fromQuery(
             new ContextFakeQuery(['a']),
             'view',
-            data: ['group' => 'shows'],
+            data: ['handles' => ['shows', 'movies']],
         );
 
-        $this->assertSame(['group' => 'shows'], $context->data->all());
+        $this->assertSame(['shows', 'movies'], $context->data->get('handles'));
     }
 
     #[Test]

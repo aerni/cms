@@ -8,6 +8,7 @@ use Illuminate\Support\ServiceProvider;
 use Statamic\Actions;
 use Statamic\Actions\Action;
 use Statamic\Addons\Manifest;
+use Statamic\Auth\Access\Rules\Entries;
 use Statamic\Auth\Access\Rules\Rule;
 use Statamic\Dictionaries;
 use Statamic\Dictionaries\Dictionary;
@@ -157,7 +158,11 @@ class ExtensionServiceProvider extends ServiceProvider
     ];
 
     protected $accessRules = [
-        //
+        Entries\ViewEntry::class,
+        Entries\EditEntry::class,
+        Entries\CreateEntry::class,
+        Entries\DeleteEntry::class,
+        Entries\PublishEntry::class,
     ];
 
     protected $scopes = [

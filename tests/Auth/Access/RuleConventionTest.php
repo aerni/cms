@@ -6,32 +6,34 @@ use LogicException;
 use PHPUnit\Framework\Attributes\Test;
 use Statamic\Auth\Access\Context\Context;
 use Statamic\Auth\Access\Rules\Rule;
+use Statamic\Contracts\Entries\Collection;
+use Statamic\Contracts\Entries\Entry;
 use Tests\TestCase;
 
 class RuleConventionTest extends TestCase
 {
     #[Test]
-    public function it_derives_operation_from_the_class_name()
+    public function it_derives_operation_and_resource_from_the_class_name()
     {
         $this->assertSame('view', ViewEntry::operation());
-        $this->assertSame(ConventionFakeResource::class, ViewEntry::resource());
+        $this->assertSame(Entry::class, ViewEntry::resource());
 
         $this->assertSame('edit', EditEntry::operation());
-        $this->assertSame(ConventionFakeResource::class, EditEntry::resource());
+        $this->assertSame(Entry::class, EditEntry::resource());
     }
 
     #[Test]
     public function it_allows_overriding_the_derived_resource()
     {
         $this->assertSame('create', CreateEntry::operation());
-        $this->assertSame(ConventionFakeParentResource::class, CreateEntry::resource());
+        $this->assertSame(Collection::class, CreateEntry::resource());
     }
 
     #[Test]
     public function it_allows_overriding_the_derived_operation()
     {
         $this->assertSame('publish', PreviewEntry::operation());
-        $this->assertSame(ConventionFakeResource::class, PreviewEntry::resource());
+        $this->assertSame(Entry::class, PreviewEntry::resource());
     }
 
     #[Test]
@@ -51,31 +53,10 @@ class RuleConventionTest extends TestCase
 
         ViewUnknown::resource();
     }
-
-    #[Test]
-    public function it_throws_when_the_resource_is_not_set_and_not_mapped()
-    {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Unable to determine resource type [ViewEntry] from ['.UnmappedViewEntry::class.']. Set protected static $resource.');
-
-        UnmappedViewEntry::resource();
-    }
-}
-
-class ConventionFakeResource
-{
-    //
-}
-
-class ConventionFakeParentResource
-{
-    //
 }
 
 class ViewEntry extends Rule
 {
-    protected static $resource = ConventionFakeResource::class;
-
     public function allows(mixed $resource, Context $context): bool
     {
         return true;
@@ -84,8 +65,6 @@ class ViewEntry extends Rule
 
 class EditEntry extends Rule
 {
-    protected static $resource = ConventionFakeResource::class;
-
     public function allows(mixed $resource, Context $context): bool
     {
         return true;
@@ -94,7 +73,7 @@ class EditEntry extends Rule
 
 class CreateEntry extends Rule
 {
-    protected static $resource = ConventionFakeParentResource::class;
+    protected static $resource = Collection::class;
 
     public function allows(mixed $resource, Context $context): bool
     {
@@ -104,8 +83,6 @@ class CreateEntry extends Rule
 
 class PreviewEntry extends Rule
 {
-    protected static $resource = ConventionFakeResource::class;
-
     protected static $operation = 'publish';
 
     public function allows(mixed $resource, Context $context): bool
@@ -123,14 +100,6 @@ class Broken extends Rule
 }
 
 class ViewUnknown extends Rule
-{
-    public function allows(mixed $resource, Context $context): bool
-    {
-        return true;
-    }
-}
-
-class UnmappedViewEntry extends Rule
 {
     public function allows(mixed $resource, Context $context): bool
     {

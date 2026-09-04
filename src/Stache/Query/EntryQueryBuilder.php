@@ -2,7 +2,9 @@
 
 namespace Statamic\Stache\Query;
 
+use Statamic\Contracts\Entries\Entry;
 use Statamic\Contracts\Entries\QueryBuilder;
+use Statamic\Contracts\Query\QueryResource;
 use Statamic\Entries\EntryCollection;
 use Statamic\Exceptions\StatusFilterNotSupportedException;
 use Statamic\Facades;
@@ -10,11 +12,21 @@ use Statamic\Facades\Blink;
 use Statamic\Facades\Collection;
 use Statamic\Support\Arr;
 
-class EntryQueryBuilder extends Builder implements QueryBuilder
+class EntryQueryBuilder extends Builder implements QueryBuilder, QueryResource
 {
     use QueriesEntryStatus, QueriesTaxonomizedEntries;
 
     protected $collections = [];
+
+    public function subject(): string
+    {
+        return Entry::class;
+    }
+
+    public function collections(): array
+    {
+        return $this->collections;
+    }
 
     public function where($column, $operator = null, $value = null, $boolean = 'and')
     {

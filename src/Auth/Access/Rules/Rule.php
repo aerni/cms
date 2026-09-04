@@ -6,6 +6,8 @@ use LogicException;
 use Illuminate\Support\Collection as SupportCollection;
 use Statamic\Auth\Access\Context\Context;
 use Statamic\Contracts\Auth\Access\Rule as Contract;
+use Statamic\Contracts\Entries\Collection;
+use Statamic\Contracts\Entries\Entry;
 use Statamic\Contracts\Query\Builder;
 use Statamic\Extend\HasHandle;
 use Statamic\Extend\RegistersItself;
@@ -54,7 +56,10 @@ abstract class Rule implements Contract
      */
     protected static function resources(): array
     {
-        return [];
+        return [
+            'Entry' => Entry::class,
+            'Collection' => Collection::class,
+        ];
     }
 
     private static function operationFromClassName(): string
