@@ -6,8 +6,10 @@ use Facades\Statamic\API\FilterAuthorizer;
 use Facades\Statamic\API\QueryScopeAuthorizer;
 use Facades\Statamic\API\ResourceAuthorizer;
 use Statamic\Exceptions\NotFoundHttpException;
+use Statamic\Facades\Access;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Term;
+use Statamic\Facades\User;
 use Statamic\Http\Resources\API\EntryResource;
 
 class TaxonomyTermEntriesController extends ApiController
@@ -44,6 +46,8 @@ class TaxonomyTermEntriesController extends ApiController
             $query->where('collection', $collection);
         }
 
+        $query = $this->applyAccessRestrictions($query);
+
         $with = $this->getRelationshipFieldsFromCollections($taxonomy);
 
         return app(EntryResource::class)::collection(
@@ -67,6 +71,15 @@ class TaxonomyTermEntriesController extends ApiController
     private function allowedCollections()
     {
         return ResourceAuthorizer::allowedSubResources('api', 'collections');
+    }
+
+    private function applyAccessRestrictions($query)
+    {
+        if (! $user = User::current()) {
+            return $query;
+        }
+
+        return Access::for($user)->can('view')->query($query);
     }
 
     protected function allowedFilters()
