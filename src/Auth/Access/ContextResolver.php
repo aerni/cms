@@ -22,7 +22,7 @@ class ContextResolver
         $resource = $this->ensureResource($resource);
         $subject = is_object($resource) ? $resource::class : $resource;
 
-        return $this->make($subject);
+        return new Context($this->user, $this->operation, $subject, $this->data);
     }
 
     public function resolveQuery(Builder $query): Context
@@ -31,20 +31,7 @@ class ContextResolver
         $subject = $this->ensureResource($query->subject());
         $subject = is_object($subject) ? $subject::class : $subject;
 
-        return $this->make($subject);
-    }
-
-    /**
-     * @param  class-string  $subject
-     */
-    private function make(string $subject): Context
-    {
-        return new Context(
-            $this->user,
-            $this->operation,
-            $subject,
-            $this->data,
-        );
+        return new Context($this->user, $this->operation, $subject, $this->data);
     }
 
     private function ensureQuery(Builder $query): Builder&QueryResource
