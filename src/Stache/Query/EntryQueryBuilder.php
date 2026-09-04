@@ -2,6 +2,7 @@
 
 namespace Statamic\Stache\Query;
 
+use Statamic\Contracts\Entries\Entry;
 use Statamic\Contracts\Entries\QueryBuilder;
 use Statamic\Entries\EntryCollection;
 use Statamic\Exceptions\StatusFilterNotSupportedException;
@@ -15,6 +16,11 @@ class EntryQueryBuilder extends Builder implements QueryBuilder
     use QueriesEntryStatus, QueriesTaxonomizedEntries;
 
     protected $collections = [];
+
+    public function subject(): string
+    {
+        return Entry::class;
+    }
 
     public function where($column, $operator = null, $value = null, $boolean = 'and')
     {
