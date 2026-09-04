@@ -4,6 +4,7 @@ namespace Statamic\Http\Resources\API;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 use Statamic\Facades\Site;
+use Statamic\Facades\User;
 use Statamic\Query\ItemQueryBuilder;
 use Statamic\Structures\TreeBuilder;
 
@@ -82,6 +83,7 @@ class TreeResource extends JsonResource
             'site' => $this->site ?? Site::default()->handle(),
             'fields' => $this->fields,
             'max_depth' => $this->maxDepth,
+            'authorize' => (bool) User::current(),
         ]);
     }
 }

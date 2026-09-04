@@ -70,6 +70,16 @@ class TreeBuilder
                 return null;
             }
 
+            if (
+                ($params['authorize'] ?? false)
+                && $page->reference()
+                && $page->referenceExists()
+                && ($user = User::current())
+                && ! $user->can('view', $page->entry())
+            ) {
+                return null;
+            }
+
             return [
                 'page' => $page->selectedQueryColumns($fields),
                 'depth' => $depth,

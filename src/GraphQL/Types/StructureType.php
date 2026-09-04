@@ -4,6 +4,7 @@ namespace Statamic\GraphQL\Types;
 
 use Statamic\Facades\GraphQL;
 use Statamic\Facades\Site;
+use Statamic\Facades\User;
 use Statamic\Structures\TreeBuilder;
 use Statamic\Support\Str;
 
@@ -53,6 +54,7 @@ abstract class StructureType extends \Rebing\GraphQL\Support\Type
                     'structure' => $structure,
                     'site' => $args['site'] ?? Site::default()->handle(),
                     'include_home' => $structure->expectsRoot(),
+                    'authorize' => (bool) User::current(),
                 ]);
             }
         };
