@@ -4,6 +4,7 @@ namespace Statamic\Auth\Access;
 
 use LogicException;
 use Statamic\Auth\Access\Context\Context;
+use Statamic\Contracts\Auth\Access\Rule;
 use Statamic\Contracts\Auth\User;
 use Statamic\Contracts\Query\Builder;
 use Statamic\Facades\Access;
@@ -47,7 +48,7 @@ class AccessBuilder
             return false;
         }
 
-        return $rules->every(fn ($rule) => $rule->allows($context));
+        return $rules->every(fn ($rule) => $rule->allows($resource, $context));
     }
 
     public function query(Builder $query): Builder
@@ -57,10 +58,12 @@ class AccessBuilder
         $rules = Access::rules($context);
 
         if ($rules->isEmpty()) {
-            return $query;
+            return $query->whereIn('id', []);
         }
 
-        $rules->each(fn ($rule) => $rule->apply($context));
+        $rules->each(function (Rule $rule) use ($context, $query) {
+            $query->where(fn (Builder $ruleQuery) => $rule->apply($ruleQuery, $context));
+        });
 
         return $query;
     }

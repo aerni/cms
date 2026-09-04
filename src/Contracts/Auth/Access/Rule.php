@@ -3,6 +3,7 @@
 namespace Statamic\Contracts\Auth\Access;
 
 use Statamic\Auth\Access\Context\Context;
+use Statamic\Contracts\Query\Builder;
 
 interface Rule
 {
@@ -24,13 +25,13 @@ interface Rule
     public function shouldApply(Context $context): bool;
 
     /**
-     * Determine whether the actor may perform the operation.
-     * When a matching rule is registered, this is the complete decision for that context.
+     * Determine whether the actor may perform the operation on the resource.
+     * Combined with other matching rules via AND (every must allow).
      */
-    public function allows(Context $context): bool;
+    public function allows(mixed $resource, Context $context): bool;
 
     /**
-     * Apply this rule's constraints to the query on the context.
+     * Apply this rule's constraints to the query.
      */
-    public function apply(Context $context): void;
+    public function apply(Builder $query, Context $context): void;
 }

@@ -11,11 +11,13 @@ class Context
 {
     public readonly Collection $data;
 
+    /**
+     * @param  class-string  $subject
+     */
     public function __construct(
         public readonly ?User $user,
         public readonly string $operation,
-        public readonly mixed $resource,
-        public readonly ?Builder $query = null,
+        public readonly string $subject,
         Collection|array $data = [],
     ) {
         $this->data = collect($data);

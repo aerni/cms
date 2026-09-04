@@ -26,23 +26,28 @@ class ContextResolver
     public function resolveResource(mixed $resource): Context
     {
         $resource = $this->ensureResource($resource);
+        $subject = is_object($resource) ? $resource::class : $resource;
         $data = array_merge(['handles' => $this->handlesFromResource($resource)], $this->data);
 
-        return $this->make($resource, query: null, data: $data);
+        return $this->make($subject, $data);
     }
 
     public function resolveQuery(Builder $query): Context
     {
         $query = $this->ensureQuery($query);
-        $resource = $this->ensureResource($query->subject());
+        $subject = $this->ensureResource($query->subject());
+        $subject = is_object($subject) ? $subject::class : $subject;
         $data = array_merge(['handles' => $this->handlesFromQuery($query)], $this->data);
 
-        return $this->make($resource, $query, $data);
+        return $this->make($subject, $data);
     }
 
-    private function make(mixed $resource, ?Builder $query, array $data): Context
+    /**
+     * @param  class-string  $subject
+     */
+    private function make(string $subject, array $data): Context
     {
-        return new Context($this->user, $this->operation, $resource, $query, $data);
+        return new Context($this->user, $this->operation, $subject, $data);
     }
 
     /**

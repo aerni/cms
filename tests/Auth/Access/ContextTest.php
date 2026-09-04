@@ -6,6 +6,7 @@ use Illuminate\Support\Collection;
 use LogicException;
 use PHPUnit\Framework\Attributes\Test;
 use Statamic\Auth\Access\Context\Context;
+use Statamic\Contracts\Entries\Entry;
 use Statamic\Contracts\Query\Builder as QueryBuilder;
 use Statamic\Contracts\Query\QueryResource;
 use Statamic\Facades\Collection as CollectionFacade;
@@ -24,8 +25,8 @@ class ContextTest extends TestCase
 
         $this->assertNull($context->user);
         $this->assertSame('view', $context->operation);
-        $this->assertSame($entry, $context->resource);
-        $this->assertNull($context->query);
+        $this->assertSame($entry::class, $context->subject);
+        $this->assertTrue(is_a($context->subject, Entry::class, true));
         $this->assertInstanceOf(Collection::class, $context->data);
         $this->assertSame(['shows'], $context->data->get('handles'));
         $this->assertTrue($context->hasHandle('shows'));
@@ -66,8 +67,7 @@ class ContextTest extends TestCase
 
         $context = Context::fromQuery($query, 'view');
 
-        $this->assertSame(ContextFakeResource::class, $context->resource);
-        $this->assertSame($query, $context->query);
+        $this->assertSame(ContextFakeResource::class, $context->subject);
         $this->assertSame([], $context->data->get('handles'));
     }
 

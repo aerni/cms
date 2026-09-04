@@ -49,21 +49,20 @@ class AccessRepository
     public function rules(Context $context): Collection
     {
         return $this->all()
-            ->filter(fn (Rule $rule) => $this->resources($context->resource)->contains($rule::resource()))
+            ->filter(fn (Rule $rule) => $this->resources($context->subject)->contains($rule::resource()))
             ->filter(fn (Rule $rule) => $rule::operation() === $context->operation)
             ->filter(fn (Rule $rule) => $rule->shouldApply($context))
             ->values();
     }
 
     /**
+     * @param  class-string  $subject
      * @return Collection<int, class-string>
      */
-    private function resources(mixed $resource): Collection
+    private function resources(string $subject): Collection
     {
-        $resource = is_object($resource) ? $resource::class : $resource;
-
         return $this->bindings()
-            ->filter(fn (string $rule) => is_a($resource, $rule::resource(), true))
+            ->filter(fn (string $rule) => is_a($subject, $rule::resource(), true))
             ->map(fn (string $rule) => $rule::resource())
             ->unique()
             ->values();

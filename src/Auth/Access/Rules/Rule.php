@@ -6,8 +6,7 @@ use LogicException;
 use Illuminate\Support\Collection as SupportCollection;
 use Statamic\Auth\Access\Context\Context;
 use Statamic\Contracts\Auth\Access\Rule as Contract;
-use Statamic\Contracts\Entries\Collection;
-use Statamic\Contracts\Entries\Entry;
+use Statamic\Contracts\Query\Builder;
 use Statamic\Extend\HasHandle;
 use Statamic\Extend\RegistersItself;
 
@@ -38,14 +37,14 @@ abstract class Rule implements Contract
         return static::$operation ?? static::operationFromClassName();
     }
 
-    abstract public function allows(Context $context): bool;
+    abstract public function allows(mixed $resource, Context $context): bool;
 
     public function shouldApply(Context $context): bool
     {
         return true;
     }
 
-    public function apply(Context $context): void
+    public function apply(Builder $query, Context $context): void
     {
         //
     }
@@ -55,10 +54,7 @@ abstract class Rule implements Contract
      */
     protected static function resources(): array
     {
-        return [
-            'Entry' => Entry::class,
-            'Collection' => Collection::class,
-        ];
+        return [];
     }
 
     private static function operationFromClassName(): string

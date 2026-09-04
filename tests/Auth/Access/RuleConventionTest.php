@@ -13,7 +13,7 @@ use Tests\TestCase;
 class RuleConventionTest extends TestCase
 {
     #[Test]
-    public function it_derives_operation_and_resource_from_the_class_name()
+    public function it_derives_operation_from_the_class_name()
     {
         $this->assertSame('view', ViewEntry::operation());
         $this->assertSame(Entry::class, ViewEntry::resource());
@@ -53,11 +53,22 @@ class RuleConventionTest extends TestCase
 
         ViewUnknown::resource();
     }
+
+    #[Test]
+    public function it_throws_when_the_resource_is_not_set_and_not_mapped()
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Unable to determine resource type [ViewEntry] from ['.UnmappedViewEntry::class.']. Set protected static $resource.');
+
+        UnmappedViewEntry::resource();
+    }
 }
 
 class ViewEntry extends Rule
 {
-    public function allows(Context $context): bool
+    protected static $resource = Entry::class;
+
+    public function allows(mixed $resource, Context $context): bool
     {
         return true;
     }
@@ -65,7 +76,9 @@ class ViewEntry extends Rule
 
 class EditEntry extends Rule
 {
-    public function allows(Context $context): bool
+    protected static $resource = Entry::class;
+
+    public function allows(mixed $resource, Context $context): bool
     {
         return true;
     }
@@ -75,7 +88,7 @@ class CreateEntry extends Rule
 {
     protected static $resource = Collection::class;
 
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
     {
         return true;
     }
@@ -83,9 +96,11 @@ class CreateEntry extends Rule
 
 class PreviewEntry extends Rule
 {
+    protected static $resource = Entry::class;
+
     protected static $operation = 'publish';
 
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
     {
         return true;
     }
@@ -93,7 +108,7 @@ class PreviewEntry extends Rule
 
 class Broken extends Rule
 {
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
     {
         return true;
     }
@@ -101,7 +116,15 @@ class Broken extends Rule
 
 class ViewUnknown extends Rule
 {
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
+    {
+        return true;
+    }
+}
+
+class UnmappedViewEntry extends Rule
+{
+    public function allows(mixed $resource, Context $context): bool
     {
         return true;
     }

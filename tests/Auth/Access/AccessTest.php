@@ -84,13 +84,13 @@ class AccessTest extends TestCase
     }
 
     #[Test]
-    public function it_leaves_queries_unmodified_when_no_rules_are_registered()
+    public function it_returns_no_results_when_no_rules_are_registered_for_a_query()
     {
         $query = new FakeQuery(['a', 'b', 'c']);
 
         Access::for(null)->can('view')->query($query);
 
-        $this->assertSame(['a', 'b', 'c'], $query->ids());
+        $this->assertSame([], $query->ids());
     }
 
     #[Test]
@@ -118,8 +118,8 @@ class AccessTest extends TestCase
     {
         Access::register(FakeCollectionSpecificRule::class);
 
-        $this->assertTrue(Access::for(null)->can('view')->resource(new FakeResource('allowed', 'shows')));
-        $this->assertFalse(Access::for(null)->can('view')->resource(new FakeResource('allowed', 'pages')));
+        $this->assertTrue(Access::for(null)->with(['handles' => ['shows']])->can('view')->resource(new FakeResource('allowed', 'shows')));
+        $this->assertFalse(Access::for(null)->with(['handles' => ['pages']])->can('view')->resource(new FakeResource('allowed', 'pages')));
     }
 
     #[Test]
@@ -132,9 +132,47 @@ class AccessTest extends TestCase
     }
 
     #[Test]
+    public function it_stacks_allows_only_for_rules_that_pass_should_apply()
+    {
+        Access::register(FakeAllowRule::class);
+        Access::register(FakeShowsDenyRule::class);
+
+        $this->assertTrue(Access::for(null)->with(['handles' => ['pages']])->can('view')->resource(new FakeResource('allowed', 'pages')));
+        $this->assertFalse(Access::for(null)->with(['handles' => ['shows']])->can('view')->resource(new FakeResource('allowed', 'shows')));
+    }
+
+    #[Test]
     public function it_applies_matching_rules_to_queries()
     {
         Access::register(FakeApplyToQueryRule::class);
+
+        $query = new FakeQuery(['a', 'b', 'c']);
+
+        Access::for(null)->can('view')->query($query);
+
+        $this->assertSame(['a', 'c'], $query->ids());
+    }
+
+    #[Test]
+    public function it_applies_only_rules_that_pass_should_apply_to_queries()
+    {
+        Access::register(FakeApplyToQueryRule::class);
+        Access::register(FakeShowsApplyToQueryRule::class);
+
+        $pagesQuery = new FakeQuery(['a', 'b', 'c']);
+        Access::for(null)->with(['collection' => 'pages'])->can('view')->query($pagesQuery);
+        $this->assertSame(['a', 'c'], $pagesQuery->ids());
+
+        $showsQuery = new FakeQuery(['a', 'b', 'c']);
+        Access::for(null)->with(['collection' => 'shows'])->can('view')->query($showsQuery);
+        $this->assertSame(['a'], $showsQuery->ids());
+    }
+
+    #[Test]
+    public function it_groups_each_rules_query_constraints_so_or_where_cannot_weaken_prior_rules()
+    {
+        Access::register(FakeApplyToQueryRule::class);
+        Access::register(FakeOrWhereWidenRule::class);
 
         $query = new FakeQuery(['a', 'b', 'c']);
 
@@ -230,7 +268,7 @@ class FakePlainQuery implements QueryBuilder
 
 class FakeQuery implements QueryBuilder, QueryResource
 {
-    public function __construct(private array $ids)
+    public function __construct(private array $ids, private bool $nested = false)
     {
     }
 
@@ -242,6 +280,35 @@ class FakeQuery implements QueryBuilder, QueryResource
     public function ids(): array
     {
         return $this->ids;
+    }
+
+    public function where($column, $operator = null, $value = null, $boolean = 'and'): self
+    {
+        if ($column instanceof \Closure) {
+            $nested = new self($this->ids, nested: true);
+            $column($nested);
+            $this->ids = array_values(array_intersect($this->ids, $nested->ids()));
+
+            return $this;
+        }
+
+        return $this;
+    }
+
+    public function whereIn(string $column, array $values): self
+    {
+        if ($column === 'id') {
+            $this->ids = $values === []
+                ? []
+                : array_values(array_intersect($this->ids, $values));
+        }
+
+        return $this;
+    }
+
+    public function orInclude(array $ids): void
+    {
+        $this->ids = array_values(array_unique([...$this->ids, ...$ids]));
     }
 
     public function exclude(string $id): void
@@ -260,9 +327,9 @@ class FakeAllowRule extends Rule
     protected static $resource = FakeResource::class;
     protected static $operation = 'view';
 
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
     {
-        return $context->resource->id === 'allowed';
+        return $resource->id === 'allowed';
     }
 }
 
@@ -271,9 +338,9 @@ class FakeEditOnlyRule extends Rule
     protected static $resource = FakeResource::class;
     protected static $operation = 'edit';
 
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
     {
-        return $context->resource->id === 'allowed';
+        return $resource->id === 'allowed';
     }
 }
 
@@ -284,10 +351,10 @@ class FakeCollectionSpecificRule extends Rule
 
     public function shouldApply(Context $context): bool
     {
-        return $context->resource->collection === 'shows';
+        return $context->hasHandle('shows');
     }
 
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
     {
         return true;
     }
@@ -298,7 +365,23 @@ class FakeDenyRule extends Rule
     protected static $resource = FakeResource::class;
     protected static $operation = 'view';
 
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
+    {
+        return false;
+    }
+}
+
+class FakeShowsDenyRule extends Rule
+{
+    protected static $resource = FakeResource::class;
+    protected static $operation = 'view';
+
+    public function shouldApply(Context $context): bool
+    {
+        return $context->hasHandle('shows');
+    }
+
+    public function allows(mixed $resource, Context $context): bool
     {
         return false;
     }
@@ -309,15 +392,58 @@ class FakeApplyToQueryRule extends Rule
     protected static $resource = FakeResource::class;
     protected static $operation = 'view';
 
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
     {
         return true;
     }
 
-    public function apply(Context $context): void
+    public function apply(QueryBuilder $query, Context $context): void
     {
-        if ($context->query instanceof FakeQuery) {
-            $context->query->exclude('b');
+        if ($query instanceof FakeQuery) {
+            $query->exclude('b');
+        }
+    }
+}
+
+class FakeShowsApplyToQueryRule extends Rule
+{
+    protected static $resource = FakeResource::class;
+    protected static $operation = 'view';
+
+    public function shouldApply(Context $context): bool
+    {
+        return $context->data->get('collection') === 'shows';
+    }
+
+    public function allows(mixed $resource, Context $context): bool
+    {
+        return true;
+    }
+
+    public function apply(QueryBuilder $query, Context $context): void
+    {
+        if ($query instanceof FakeQuery) {
+            $query->exclude('c');
+        }
+    }
+}
+
+class FakeOrWhereWidenRule extends Rule
+{
+    protected static $resource = FakeResource::class;
+    protected static $operation = 'view';
+
+    public function allows(mixed $resource, Context $context): bool
+    {
+        return true;
+    }
+
+    public function apply(QueryBuilder $query, Context $context): void
+    {
+        // At the root builder this would OR-widen past prior exclusions.
+        // Inside an AND group it cannot restore excluded ids.
+        if ($query instanceof FakeQuery) {
+            $query->orInclude(['a', 'b', 'c']);
         }
     }
 }
@@ -332,16 +458,16 @@ class FakeParentApplyToEntryQueryRule extends Rule
         return $context->hasHandle('access-parent-test');
     }
 
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
     {
         return true;
     }
 
-    public function apply(Context $context): void
+    public function apply(QueryBuilder $query, Context $context): void
     {
-        if ($context->query instanceof FakeQuery) {
-            $context->query->exclude('b');
-            $context->query->exclude('c');
+        if ($query instanceof FakeQuery) {
+            $query->exclude('b');
+            $query->exclude('c');
         }
     }
 }
@@ -351,7 +477,7 @@ class FakeContractRule extends Rule
     protected static $resource = FakeResourceContract::class;
     protected static $operation = 'view';
 
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
     {
         return true;
     }
@@ -362,12 +488,12 @@ class FakePermissionAwareRule extends Rule
     protected static $resource = FakeResource::class;
     protected static $operation = 'view';
 
-    public function allows(Context $context): bool
+    public function allows(mixed $resource, Context $context): bool
     {
         if (! $context->user?->hasPermission('view test entries')) {
             return false;
         }
 
-        return $context->resource->id === 'allowed';
+        return $resource->id === 'allowed';
     }
 }
