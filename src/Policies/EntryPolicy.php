@@ -2,6 +2,8 @@
 
 namespace Statamic\Policies;
 
+use Statamic\Contracts\Entries\Collection;
+use Statamic\Facades\Access;
 use Statamic\Facades\User;
 
 class EntryPolicy
@@ -26,27 +28,14 @@ class EntryPolicy
     {
         $user = User::fromUser($user);
 
-        if (! $this->userCanAccessSite($user, $entry->site())) {
-            return false;
-        }
-
-        return $this->edit($user, $entry)
-            || $user->hasPermission("view {$entry->collectionHandle()} entries");
+        return Access::for($user)->can('view')->resource($entry);
     }
 
     public function edit($user, $entry)
     {
         $user = User::fromUser($user);
 
-        if (! $this->userCanAccessSite($user, $entry->site())) {
-            return false;
-        }
-
-        if ($this->hasAnotherAuthor($user, $entry)) {
-            return $user->hasPermission("edit other authors {$entry->collectionHandle()} entries");
-        }
-
-        return $user->hasPermission("edit {$entry->collectionHandle()} entries");
+        return Access::for($user)->can('edit')->resource($entry);
     }
 
     public function editOtherAuthorsEntries($user, $collection, $blueprint = null)
@@ -62,8 +51,6 @@ class EntryPolicy
 
     public function update($user, $entry)
     {
-        $user = User::fromUser($user);
-
         return $this->edit($user, $entry);
     }
 
@@ -75,7 +62,7 @@ class EntryPolicy
             return false;
         }
 
-        return $user->hasPermission("create {$collection->handle()} entries");
+        return Access::for($user)->can('create')->resource($collection);
     }
 
     public function store($user, $collection, $site = null)
@@ -87,34 +74,17 @@ class EntryPolicy
     {
         $user = User::fromUser($user);
 
-        if ($this->hasAnotherAuthor($user, $entry)) {
-            return $user->hasPermission("delete other authors {$entry->collectionHandle()} entries");
-        }
-
-        return $user->hasPermission("delete {$entry->collectionHandle()} entries");
+        return Access::for($user)->can('delete')->resource($entry);
     }
 
     public function publish($user, $entry)
     {
         $user = User::fromUser($user);
 
-        if ($entry instanceof \Statamic\Contracts\Entries\Collection) {
+        if ($entry instanceof Collection) {
             return $user->hasPermission("publish {$entry->handle()} entries");
         }
 
-        if ($this->hasAnotherAuthor($user, $entry)) {
-            return $user->hasPermission("publish other authors {$entry->collectionHandle()} entries");
-        }
-
-        return $user->hasPermission("publish {$entry->collectionHandle()} entries");
-    }
-
-    protected function hasAnotherAuthor($user, $entry)
-    {
-        if ($entry->blueprint()->hasField('author') === false) {
-            return false;
-        }
-
-        return ! $entry->authors()->contains($user->id());
+        return Access::for($user)->can('publish')->resource($entry);
     }
 }
