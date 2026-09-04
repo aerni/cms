@@ -3,21 +3,23 @@
 namespace Statamic\Facades;
 
 use Illuminate\Support\Facades\Facade;
-use Statamic\Auth\Access\Manager;
+use Statamic\Auth\Access\AccessBuilder;
+use Statamic\Auth\Access\AccessRepository;
+use Statamic\Contracts\Auth\Access\Rule;
 
 /**
- * @method static \Statamic\Auth\Access\Manager register(string $rule)
- * @method static \Statamic\Auth\Access\Manager forUser(\Statamic\Contracts\Auth\User|null $user)
- * @method static bool allows(string $operation, mixed $resource)
- * @method static void applyRulesTo(\Statamic\Contracts\Query\Builder $query, mixed $resource, string $operation = 'view', mixed $parent = null)
- * @method static void applyToEntry(\Statamic\Contracts\Query\Builder $query, \Statamic\Contracts\Entries\Collection|null $parent = null)
+ * @method static AccessRepository register(string $rule)
+ * @method static AccessBuilder for(\Statamic\Contracts\Auth\User|null $user)
+ * @method static \Illuminate\Support\Collection<int, Rule> all()
+ * @method static Rule|null find(string $handle)
+ * @method static \Illuminate\Support\Collection<int, Rule> rules(\Statamic\Auth\Access\Context\Context $context)
  *
- * @see Manager
+ * @see AccessRepository
  */
 class Access extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return Manager::class;
+        return AccessRepository::class;
     }
 }

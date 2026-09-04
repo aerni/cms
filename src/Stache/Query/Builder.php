@@ -2,12 +2,13 @@
 
 namespace Statamic\Stache\Query;
 
+use Statamic\Contracts\Query\QueryResource;
 use Statamic\Data\DataCollection;
 use Statamic\Query\Builder as BaseBuilder;
 use Statamic\Stache\Stores\Store;
 use Statamic\Support\Arr;
 
-abstract class Builder extends BaseBuilder
+abstract class Builder extends BaseBuilder implements QueryResource
 {
     protected $store;
     protected $randomize = false;

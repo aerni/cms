@@ -4,9 +4,10 @@ namespace Statamic\Query;
 
 use Illuminate\Support\Traits\ForwardsCalls;
 use Statamic\Contracts\Query\Builder;
+use Statamic\Contracts\Query\QueryResource;
 use Statamic\Support\Arr;
 
-class StatusQueryBuilder implements Builder
+class StatusQueryBuilder implements Builder, QueryResource
 {
     use ForwardsCalls;
 
@@ -67,5 +68,10 @@ class StatusQueryBuilder implements Builder
         $this->queryFallbackStatus = false;
 
         return $this;
+    }
+
+    public function subject(): string
+    {
+        return $this->builder->subject();
     }
 }

@@ -3,9 +3,11 @@
 namespace Statamic\Auth\Access;
 
 use Illuminate\Support\Collection;
+use Statamic\Auth\Access\Context\Context;
 use Statamic\Contracts\Auth\Access\Rule;
+use Statamic\Contracts\Auth\User;
 
-class Repository
+class AccessRepository
 {
     /**
      * @param  class-string<Rule>  $rule
@@ -15,6 +17,11 @@ class Repository
         $rule::register();
 
         return $this;
+    }
+
+    public function for(?User $user): AccessBuilder
+    {
+        return app(AccessBuilder::class)->user($user);
     }
 
     /**
@@ -39,12 +46,12 @@ class Repository
     /**
      * @return Collection<int, Rule>
      */
-    public function for(Context $context): Collection
+    public function rules(Context $context): Collection
     {
         return $this->all()
             ->filter(fn (Rule $rule) => $this->resources($context->resource)->contains($rule::resource()))
             ->filter(fn (Rule $rule) => $rule::operation() === $context->operation)
-            ->filter(fn (Rule $rule) => $rule->appliesTo($context))
+            ->filter(fn (Rule $rule) => $rule->shouldApply($context))
             ->values();
     }
 

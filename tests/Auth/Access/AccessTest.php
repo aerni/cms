@@ -4,24 +4,28 @@ namespace Tests\Auth\Access;
 
 use LogicException;
 use Mockery;
+use PHPUnit\Framework\Attributes\DoesNotPerformAssertions;
 use PHPUnit\Framework\Attributes\Test;
-use Statamic\Auth\Access\Context;
-use Statamic\Auth\Access\Repository;
-use Statamic\Auth\Access\Rule;
+use Statamic\Auth\Access\AccessRepository;
+use Statamic\Auth\Access\Context\Context;
+use Statamic\Auth\Access\Rules\Rule;
 use Statamic\Contracts\Auth\User as UserContract;
 use Statamic\Contracts\Query\Builder as QueryBuilder;
+use Statamic\Contracts\Query\QueryResource;
 use Statamic\Facades\Access;
+use Statamic\Query\OrderedQueryBuilder;
+use Statamic\Query\StatusQueryBuilder;
 use Tests\TestCase;
 
 class AccessTest extends TestCase
 {
-    private Repository $repo;
+    private AccessRepository $repo;
 
     public function setUp(): void
     {
         parent::setUp();
 
-        $this->repo = new Repository;
+        $this->repo = new AccessRepository;
     }
 
     #[Test]
@@ -36,23 +40,23 @@ class AccessTest extends TestCase
     }
 
     #[Test]
-    public function it_requires_a_user_before_evaluating_access()
+    public function it_requires_an_operation_before_evaluating_access()
     {
         $resource = new FakeResource('a');
 
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A user must be specified using forUser() before evaluating access.');
+        $this->expectExceptionMessage('An operation must be specified using can() before evaluating access.');
 
-        Access::allows('view', $resource);
+        Access::for(null)->resource($resource);
     }
 
     #[Test]
-    public function it_requires_a_user_before_applying_to_queries()
+    public function it_requires_an_operation_before_applying_to_queries()
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A user must be specified using forUser() before evaluating access.');
+        $this->expectExceptionMessage('An operation must be specified using can() before evaluating access.');
 
-        Access::applyRulesTo(new FakeQuery(['a']), new FakeResource('a'));
+        Access::for(null)->query(new FakeQuery(['a']));
     }
 
     #[Test]
@@ -61,22 +65,22 @@ class AccessTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('A resource instance or class string is required to evaluate access.');
 
-        Access::forUser(null)->allows('view', null);
+        Access::for(null)->can('view')->resource(null);
     }
 
     #[Test]
-    public function it_requires_a_resource_before_applying_to_queries()
+    public function it_requires_an_access_queryable_query_before_applying_rules()
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('A resource instance or class string is required to evaluate access.');
+        $this->expectExceptionMessage('The query must implement ['.QueryResource::class.'] to apply access rules.');
 
-        Access::forUser(null)->applyRulesTo(new FakeQuery(['a']), null);
+        Access::for(null)->can('view')->query(new FakePlainQuery);
     }
 
     #[Test]
     public function it_denies_when_no_rules_are_registered()
     {
-        $this->assertFalse(Access::forUser(null)->allows('view', new FakeResource('a')));
+        $this->assertFalse(Access::for(null)->can('view')->resource(new FakeResource('a')));
     }
 
     #[Test]
@@ -84,7 +88,7 @@ class AccessTest extends TestCase
     {
         $query = new FakeQuery(['a', 'b', 'c']);
 
-        Access::forUser(null)->applyRulesTo($query, new FakeResource('a'));
+        Access::for(null)->can('view')->query($query);
 
         $this->assertSame(['a', 'b', 'c'], $query->ids());
     }
@@ -94,8 +98,8 @@ class AccessTest extends TestCase
     {
         Access::register(FakeAllowRule::class);
 
-        $this->assertTrue(Access::forUser(null)->allows('view', new FakeResource('allowed')));
-        $this->assertFalse(Access::forUser(null)->allows('view', new FakeResource('denied')));
+        $this->assertTrue(Access::for(null)->can('view')->resource(new FakeResource('allowed')));
+        $this->assertFalse(Access::for(null)->can('view')->resource(new FakeResource('denied')));
     }
 
     #[Test]
@@ -104,9 +108,9 @@ class AccessTest extends TestCase
         Access::register(FakeAllowRule::class);
         Access::register(FakeEditOnlyRule::class);
 
-        $this->assertFalse(Access::forUser(null)->allows('delete', new FakeResource('allowed')));
-        $this->assertTrue(Access::forUser(null)->allows('view', new FakeResource('allowed')));
-        $this->assertFalse(Access::forUser(null)->allows('edit', new FakeResource('denied')));
+        $this->assertFalse(Access::for(null)->can('delete')->resource(new FakeResource('allowed')));
+        $this->assertTrue(Access::for(null)->can('view')->resource(new FakeResource('allowed')));
+        $this->assertFalse(Access::for(null)->can('edit')->resource(new FakeResource('denied')));
     }
 
     #[Test]
@@ -114,8 +118,8 @@ class AccessTest extends TestCase
     {
         Access::register(FakeCollectionSpecificRule::class);
 
-        $this->assertTrue(Access::forUser(null)->allows('view', new FakeResource('allowed', 'shows')));
-        $this->assertFalse(Access::forUser(null)->allows('view', new FakeResource('allowed', 'pages')));
+        $this->assertTrue(Access::for(null)->can('view')->resource(new FakeResource('allowed', 'shows')));
+        $this->assertFalse(Access::for(null)->can('view')->resource(new FakeResource('allowed', 'pages')));
     }
 
     #[Test]
@@ -124,7 +128,7 @@ class AccessTest extends TestCase
         Access::register(FakeAllowRule::class);
         Access::register(FakeDenyRule::class);
 
-        $this->assertFalse(Access::forUser(null)->allows('view', new FakeResource('allowed')));
+        $this->assertFalse(Access::for(null)->can('view')->resource(new FakeResource('allowed')));
     }
 
     #[Test]
@@ -134,25 +138,30 @@ class AccessTest extends TestCase
 
         $query = new FakeQuery(['a', 'b', 'c']);
 
-        Access::forUser(null)->applyRulesTo($query, new FakeResource('a'));
+        Access::for(null)->can('view')->query($query);
 
         $this->assertSame(['a', 'c'], $query->ids());
     }
 
     #[Test]
-    public function it_passes_parent_to_rules_when_applying_to_queries()
+    #[DoesNotPerformAssertions]
+    public function it_resolves_subject_from_wrapped_queries()
     {
-        Access::register(FakeParentApplyToQueryRule::class);
+        Access::register(FakeApplyToQueryRule::class);
 
-        $parent = new FakeResource('a', 'shows');
+        Access::for(null)->can('view')->query(
+            new StatusQueryBuilder(new OrderedQueryBuilder(new FakeQuery(['a', 'b', 'c'])))
+        );
+    }
+
+    #[Test]
+    public function it_uses_context_handles_when_applying_rules_to_queries()
+    {
+        Access::register(FakeParentApplyToEntryQueryRule::class);
+
         $query = new FakeQuery(['a', 'b', 'c']);
 
-        Access::forUser(null)->applyRulesTo(
-            $query,
-            new FakeResource('a'),
-            'view',
-            $parent,
-        );
+        Access::for(null)->with(['handles' => ['access-parent-test']])->can('view')->query($query);
 
         $this->assertSame(['a'], $query->ids());
     }
@@ -162,7 +171,7 @@ class AccessTest extends TestCase
     {
         Access::register(FakeContractRule::class);
 
-        $this->assertTrue(Access::forUser(null)->allows('view', new FakeResource('allowed')));
+        $this->assertTrue(Access::for(null)->can('view')->resource(new FakeResource('allowed')));
     }
 
     #[Test]
@@ -176,8 +185,29 @@ class AccessTest extends TestCase
         $withPermission = Mockery::mock(UserContract::class);
         $withPermission->shouldReceive('hasPermission')->with('view test entries')->andReturn(true);
 
-        $this->assertFalse(Access::forUser($withoutPermission)->allows('view', new FakeResource('allowed')));
-        $this->assertTrue(Access::forUser($withPermission)->allows('view', new FakeResource('allowed')));
+        $this->assertFalse(Access::for($withoutPermission)->can('view')->resource(new FakeResource('allowed')));
+        $this->assertTrue(Access::for($withPermission)->can('view')->resource(new FakeResource('allowed')));
+    }
+
+    #[Test]
+    public function it_can_check_policy_via_fluent_can_resource()
+    {
+        Access::register(FakeAllowRule::class);
+
+        $this->assertTrue(Access::for(null)->can('view')->resource(new FakeResource('allowed')));
+        $this->assertFalse(Access::for(null)->can('view')->resource(new FakeResource('denied')));
+    }
+
+    #[Test]
+    public function it_can_scope_queries_via_fluent_can_query()
+    {
+        Access::register(FakeApplyToQueryRule::class);
+
+        $query = new FakeQuery(['a', 'b', 'c']);
+
+        $query = Access::for(null)->can('view')->query($query);
+
+        $this->assertSame(['a', 'c'], $query->ids());
     }
 }
 
@@ -193,10 +223,20 @@ class FakeResource extends FakeResourceContract
     }
 }
 
-class FakeQuery implements QueryBuilder
+class FakePlainQuery implements QueryBuilder
+{
+    //
+}
+
+class FakeQuery implements QueryBuilder, QueryResource
 {
     public function __construct(private array $ids)
     {
+    }
+
+    public function subject(): string
+    {
+        return FakeResource::class;
     }
 
     public function ids(): array
@@ -242,7 +282,7 @@ class FakeCollectionSpecificRule extends Rule
     protected static $resource = FakeResource::class;
     protected static $operation = 'view';
 
-    public function appliesTo(Context $context): bool
+    public function shouldApply(Context $context): bool
     {
         return $context->resource->collection === 'shows';
     }
@@ -274,22 +314,22 @@ class FakeApplyToQueryRule extends Rule
         return true;
     }
 
-    public function apply(QueryBuilder $query, Context $context): void
+    public function apply(Context $context): void
     {
-        if ($query instanceof FakeQuery) {
-            $query->exclude('b');
+        if ($context->query instanceof FakeQuery) {
+            $context->query->exclude('b');
         }
     }
 }
 
-class FakeParentApplyToQueryRule extends Rule
+class FakeParentApplyToEntryQueryRule extends Rule
 {
     protected static $resource = FakeResource::class;
     protected static $operation = 'view';
 
-    public function appliesTo(Context $context): bool
+    public function shouldApply(Context $context): bool
     {
-        return $context->parent?->collection === 'shows';
+        return $context->hasHandle('access-parent-test');
     }
 
     public function allows(Context $context): bool
@@ -297,11 +337,11 @@ class FakeParentApplyToQueryRule extends Rule
         return true;
     }
 
-    public function apply(QueryBuilder $query, Context $context): void
+    public function apply(Context $context): void
     {
-        if ($query instanceof FakeQuery) {
-            $query->exclude('b');
-            $query->exclude('c');
+        if ($context->query instanceof FakeQuery) {
+            $context->query->exclude('b');
+            $context->query->exclude('c');
         }
     }
 }

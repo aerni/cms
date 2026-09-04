@@ -13,7 +13,7 @@ use Illuminate\Support\Reflector;
 use Illuminate\Support\ServiceProvider;
 use Statamic\Actions\Action;
 use Statamic\Addons\Manifest;
-use Statamic\Auth\Access\Rule;
+use Statamic\Auth\Access\Rules\Rule;
 use Statamic\Dictionaries\Dictionary;
 use Statamic\Exceptions\NotBootedException;
 use Statamic\Facades\Addon;

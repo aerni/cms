@@ -8,7 +8,7 @@ use Illuminate\Support\ServiceProvider;
 use Statamic\Actions;
 use Statamic\Actions\Action;
 use Statamic\Addons\Manifest;
-use Statamic\Auth\Access\Rule;
+use Statamic\Auth\Access\Rules\Rule;
 use Statamic\Dictionaries;
 use Statamic\Dictionaries\Dictionary;
 use Statamic\Fields\Fieldtype;

@@ -4,8 +4,9 @@ namespace Statamic\Query;
 
 use Illuminate\Support\Traits\ForwardsCalls;
 use Statamic\Contracts\Query\Builder;
+use Statamic\Contracts\Query\QueryResource;
 
-class OrderedQueryBuilder implements Builder
+class OrderedQueryBuilder implements Builder, QueryResource
 {
     use ForwardsCalls;
 
@@ -98,5 +99,10 @@ class OrderedQueryBuilder implements Builder
         $this->offset = $value;
 
         return $this;
+    }
+
+    public function subject(): string
+    {
+        return $this->builder->subject();
     }
 }
