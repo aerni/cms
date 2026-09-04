@@ -5,10 +5,11 @@ namespace Statamic\Auth\Eloquent;
 use Illuminate\Support\Facades\DB;
 use Statamic\Auth\UserCollection;
 use Statamic\Contracts\Auth\User as UserContract;
+use Statamic\Contracts\Query\QueryResource;
 use Statamic\Facades\User;
 use Statamic\Query\EloquentQueryBuilder;
 
-class UserQueryBuilder extends EloquentQueryBuilder
+class UserQueryBuilder extends EloquentQueryBuilder implements QueryResource
 {
     public function subject(): string
     {

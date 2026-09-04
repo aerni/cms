@@ -4,11 +4,12 @@ namespace Statamic\Stache\Query;
 
 use Statamic\Contracts\Forms\Submission;
 use Statamic\Contracts\Forms\SubmissionQueryBuilder as QueryBuilderContract;
+use Statamic\Contracts\Query\QueryResource;
 use Statamic\Data\DataCollection;
 use Statamic\Facades;
 use Statamic\Query\OrderBy;
 
-class SubmissionQueryBuilder extends Builder implements QueryBuilderContract
+class SubmissionQueryBuilder extends Builder implements QueryBuilderContract, QueryResource
 {
     protected $forms;
 

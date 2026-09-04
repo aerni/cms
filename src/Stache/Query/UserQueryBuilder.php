@@ -4,9 +4,10 @@ namespace Statamic\Stache\Query;
 
 use Statamic\Auth\UserCollection;
 use Statamic\Contracts\Auth\User as UserContract;
+use Statamic\Contracts\Query\QueryResource;
 use Statamic\Facades\User;
 
-class UserQueryBuilder extends Builder
+class UserQueryBuilder extends Builder implements QueryResource
 {
     public function subject(): string
     {

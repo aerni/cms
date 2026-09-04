@@ -6,11 +6,12 @@ use Exception;
 use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Assets\AssetContainer;
 use Statamic\Contracts\Assets\QueryBuilder as Contract;
+use Statamic\Contracts\Query\QueryResource;
 use Statamic\Facades;
 use Statamic\Stache\Query\Builder as BaseQueryBuilder;
 use Statamic\Support\Arr;
 
-class QueryBuilder extends BaseQueryBuilder implements Contract
+class QueryBuilder extends BaseQueryBuilder implements Contract, QueryResource
 {
     protected $container;
 

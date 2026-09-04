@@ -3,10 +3,11 @@
 namespace Statamic\Stache\Query;
 
 use Illuminate\Support\Collection;
+use Statamic\Contracts\Query\QueryResource;
 use Statamic\Contracts\Revisions\Revision;
 use Statamic\Contracts\Revisions\RevisionQueryBuilder as QueryBuilderContract;
 
-class RevisionQueryBuilder extends Builder implements QueryBuilderContract
+class RevisionQueryBuilder extends Builder implements QueryBuilderContract, QueryResource
 {
     public function subject(): string
     {

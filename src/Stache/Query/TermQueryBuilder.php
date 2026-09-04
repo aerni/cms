@@ -2,13 +2,14 @@
 
 namespace Statamic\Stache\Query;
 
+use Statamic\Contracts\Query\QueryResource;
 use Statamic\Contracts\Taxonomies\Term;
 use Statamic\Facades;
 use Statamic\Facades\Collection;
 use Statamic\Support\Arr;
 use Statamic\Taxonomies\TermCollection;
 
-class TermQueryBuilder extends Builder
+class TermQueryBuilder extends Builder implements QueryResource
 {
     protected $taxonomies;
     protected $collections;

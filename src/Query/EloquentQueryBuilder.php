@@ -9,7 +9,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\LazyCollection;
 use InvalidArgumentException;
 use Statamic\Contracts\Query\Builder;
-use Statamic\Contracts\Query\QueryResource;
 use Statamic\Extensions\Pagination\LengthAwarePaginator;
 use Statamic\Facades\Blink;
 use Statamic\Query\Concerns\QueriesRelationships;
@@ -18,7 +17,7 @@ use Statamic\Query\Exceptions\RecordsNotFoundException;
 use Statamic\Query\Scopes\AppliesScopes;
 use Statamic\Support\Arr;
 
-abstract class EloquentQueryBuilder implements Builder, QueryResource
+abstract class EloquentQueryBuilder implements Builder
 {
     use AppliesScopes, QueriesRelationships;
 
