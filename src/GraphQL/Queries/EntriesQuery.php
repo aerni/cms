@@ -6,8 +6,10 @@ use Facades\Statamic\API\FilterAuthorizer;
 use Facades\Statamic\API\QueryScopeAuthorizer;
 use Facades\Statamic\API\ResourceAuthorizer;
 use GraphQL\Type\Definition\Type;
+use Statamic\Facades\Access;
 use Statamic\Facades\Entry;
 use Statamic\Facades\GraphQL;
+use Statamic\Facades\User;
 use Statamic\GraphQL\Middleware\AuthorizeFilters;
 use Statamic\GraphQL\Middleware\AuthorizeQueryScopes;
 use Statamic\GraphQL\Middleware\AuthorizeSubResources;
@@ -71,6 +73,10 @@ class EntriesQuery extends Query
         $this->scopeQuery($query, $args['query_scope'] ?? []);
 
         $this->sortQuery($query, $args['sort'] ?? []);
+
+        if ($user = User::current()) {
+            Access::for($user)->can('view')->query($query);
+        }
 
         return $query->paginate($args['limit'] ?? 1000);
     }

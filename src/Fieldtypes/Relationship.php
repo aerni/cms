@@ -383,5 +383,12 @@ abstract class Relationship extends Fieldtype
             ->map(fn ($handle) => Scope::find($handle))
             ->filter()
             ->each(fn ($scope) => $scope->apply($query, $params));
+
+        $this->applyIndexAccessRules($query, $params);
+    }
+
+    protected function applyIndexAccessRules($query, $params): void
+    {
+        //
     }
 }

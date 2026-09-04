@@ -3,6 +3,7 @@
 namespace Tests\Feature\Fieldtypes;
 
 use PHPUnit\Framework\Attributes\Test;
+use Statamic\Facades\Access;
 use Statamic\Facades\Blueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -13,6 +14,7 @@ use Statamic\Facades\Taxonomy;
 use Statamic\Facades\Term;
 use Statamic\Facades\User;
 use Statamic\Query\Scopes\Scope;
+use Tests\Auth\Access\Fakes\FakeApplyToEntryQueryRule;
 use Tests\FakesRoles;
 use Tests\PreventSavingStacheItemsToDisk;
 use Tests\TestCase;
@@ -94,6 +96,30 @@ class RelationshipFieldtypeTest extends TestCase
 
         // The scope only filters when its alias is present in the queryScopes param.
         $this->assertEqualsCanonicalizing(['Carrot', 'Cherry'], $titles);
+    }
+
+    #[Test]
+    public function it_restricts_entries_by_access_rules()
+    {
+        Access::register(FakeApplyToEntryQueryRule::class);
+
+        Entry::make()->collection('test')->slug('visible')->data(['title' => 'Visible'])->save();
+        Entry::make()->collection('test')->slug('secret')->data(['title' => 'Secret'])->save();
+
+        $this->setTestRoles(['test' => ['access cp', 'view test entries']]);
+        $user = User::make()->assignRole('test')->save();
+
+        $config = base64_encode(json_encode([
+            'type' => 'entries',
+            'collections' => ['test'],
+        ]));
+
+        $response = $this
+            ->actingAs($user)
+            ->get("/cp/fieldtypes/relationship?config={$config}")
+            ->assertOk();
+
+        $this->assertSame(['visible'], collect($response->json('data'))->pluck('slug')->all());
     }
 
     #[Test]

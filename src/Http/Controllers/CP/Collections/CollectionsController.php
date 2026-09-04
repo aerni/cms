@@ -6,9 +6,11 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Statamic\Contracts\Entries\Collection as CollectionContract;
 use Statamic\Contracts\Entries\Entry as EntryContract;
+use Statamic\Contracts\Entries\QueryBuilder;
 use Statamic\CP\Column;
 use Statamic\CP\PublishForm;
 use Statamic\Exceptions\SiteNotFoundException;
+use Statamic\Facades\Access;
 use Statamic\Facades\Action;
 use Statamic\Facades\Blueprint;
 use Statamic\Facades\Collection;
@@ -63,10 +65,10 @@ class CollectionsController extends CpController
             return [
                 'id' => $collection->handle(),
                 'title' => $collection->title(),
-                'entries_count' => $collection->queryEntries()->where('site', Site::selected())->count(),
-                'published_entries_count' => $collection->queryEntries()->where('site', Site::selected())->whereStatus('published')->count(),
-                'draft_entries_count' => $collection->queryEntries()->where('site', Site::selected())->whereStatus('draft')->count(),
-                'scheduled_entries_count' => $collection->queryEntries()->where('site', Site::selected())->whereStatus('scheduled')->count(),
+                'entries_count' => $this->entriesQuery($collection)->count(),
+                'published_entries_count' => $this->entriesQuery($collection)->whereStatus('published')->count(),
+                'draft_entries_count' => $this->entriesQuery($collection)->whereStatus('draft')->count(),
+                'scheduled_entries_count' => $this->entriesQuery($collection)->whereStatus('scheduled')->count(),
                 'blueprints' => $collection->entryBlueprints()->reject->hidden()
                     ->map(fn ($blueprint) => [
                         ...$blueprint->toArray(),
@@ -198,7 +200,7 @@ class CollectionsController extends CpController
             ];
         }
 
-        if ($collection->queryEntries()->count() === 0) {
+        if ($this->entriesQuery($collection)->count() === 0) {
             return Inertia::render('collections/Empty', [
                 ...Arr::only($props, [
                     'icon',
@@ -725,5 +727,14 @@ class CollectionsController extends CpController
         if (Site::multiEnabled() && ! $collection->sites()->contains($site->handle())) {
             return redirect(cp_route('collections.index'))->with('error', __('Collection is not available on site ":handle".', ['handle' => $site->handle]));
         }
+    }
+
+    protected function entriesQuery(CollectionContract $collection): QueryBuilder
+    {
+        $query = $collection->queryEntries()->where('site', Site::selected());
+
+        Access::for(User::current())->can('view')->query($query);
+
+        return $query;
     }
 }

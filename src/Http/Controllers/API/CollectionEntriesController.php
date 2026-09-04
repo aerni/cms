@@ -5,7 +5,9 @@ namespace Statamic\Http\Controllers\API;
 use Facades\Statamic\API\FilterAuthorizer;
 use Facades\Statamic\API\QueryScopeAuthorizer;
 use Statamic\Exceptions\NotFoundHttpException;
+use Statamic\Facades\Access;
 use Statamic\Facades\Entry;
+use Statamic\Facades\User;
 use Statamic\Http\Resources\API\EntryResource;
 use Statamic\Support\Str;
 use Statamic\Tags\Concerns\QueriesTaxonomyTerms;
@@ -29,8 +31,12 @@ class CollectionEntriesController extends ApiController
             ->flatMap(fn ($blueprint) => $blueprint->fields()->all())
             ->filter->isRelationship()->keys()->all();
 
+        $query = $collection->queryEntries()->with($with);
+
+        $this->applyAccessRestrictions($query);
+
         return app(EntryResource::class)::collection(
-            $this->updateAndPaginate($collection->queryEntries()->with($with))
+            $this->updateAndPaginate($query)
         );
     }
 
@@ -42,6 +48,7 @@ class CollectionEntriesController extends ApiController
 
         $this->abortIfInvalid($entry, $collection);
         $this->abortIfUnpublished($entry);
+        $this->abortIfInaccessible($entry);
 
         return app(EntryResource::class)::make($entry);
     }
@@ -76,6 +83,26 @@ class CollectionEntriesController extends ApiController
         if (! $entry || $entry->collection()->id() !== $collection->id()) {
             throw new NotFoundHttpException;
         }
+    }
+
+    private function abortIfInaccessible($entry): void
+    {
+        if (! $user = User::current()) {
+            return;
+        }
+
+        if (! Access::for($user)->can('view')->resource($entry)) {
+            throw new NotFoundHttpException;
+        }
+    }
+
+    private function applyAccessRestrictions($query): void
+    {
+        if (! $user = User::current()) {
+            return;
+        }
+
+        Access::for($user)->can('view')->query($query);
     }
 
     protected function allowedFilters()

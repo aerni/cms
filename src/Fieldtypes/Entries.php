@@ -9,6 +9,7 @@ use Statamic\Contracts\Entries\Entry as EntryContract;
 use Statamic\CP\Column;
 use Statamic\CP\Columns;
 use Statamic\Exceptions\CollectionNotFoundException;
+use Statamic\Facades\Access;
 use Statamic\Facades\Blink;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -164,13 +165,6 @@ class Entries extends Relationship
 
         $filters = $request->filters;
 
-        if (! isset($filters['collection'])) {
-            $query->whereIn(
-                'collection',
-                $this->getViewableCollections($configuredCollections)->map->handle()->all()
-            );
-        }
-
         if ($blueprints = $this->config('blueprints')) {
             $query->whereIn('blueprint', $blueprints);
         }
@@ -295,9 +289,28 @@ class Entries extends Relationship
             $query->whereNotIn('id', $request->exclusions);
         }
 
+        $this->applyCollectionConstraints($query, $request);
+
         $this->applyIndexQueryScopes($query, $request->all());
 
         return $query;
+    }
+
+    protected function applyCollectionConstraints($query, $request): void
+    {
+        if (isset($request->filters['collection'])) {
+            return;
+        }
+
+        $query->whereIn(
+            'collection',
+            $this->getViewableCollections($this->getConfiguredCollections())->map->handle()->all()
+        );
+    }
+
+    protected function applyIndexAccessRules($query, $params): void
+    {
+        Access::for(User::current())->can('view')->query($query);
     }
 
     private function toSearchQuery($query, $request)

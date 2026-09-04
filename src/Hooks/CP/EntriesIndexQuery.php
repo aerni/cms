@@ -2,6 +2,8 @@
 
 namespace Statamic\Hooks\CP;
 
+use Statamic\Facades\Access;
+use Statamic\Facades\User;
 use Statamic\Support\Traits\Hookable;
 
 class EntriesIndexQuery
@@ -20,6 +22,10 @@ class EntriesIndexQuery
             'collection' => $this->collection,
         ]);
 
-        return $payload->query->paginate($perPage);
+        $query = $payload->query;
+
+        Access::for(User::current())->can('view')->query($query);
+
+        return $query->paginate($perPage);
     }
 }

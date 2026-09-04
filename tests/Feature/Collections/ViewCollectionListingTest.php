@@ -7,7 +7,9 @@ use PHPUnit\Framework\Attributes\Test;
 use Statamic\Auth\User;
 use Statamic\Entries\Collection;
 use Statamic\Facades;
+use Statamic\Facades\Access;
 use Statamic\Facades\Scope;
+use Tests\Auth\Access\Fakes\FakeApplyToEntryQueryRule;
 use Tests\FakesRoles;
 use Tests\PreventSavingStacheItemsToDisk;
 use Tests\TestCase;
@@ -202,6 +204,33 @@ class ViewCollectionListingTest extends TestCase
             ->actingAs($user)
             ->get(cp_route('collections.index'))
             ->assertInertia(fn ($page) => $page->where('canCreate', true));
+    }
+
+    #[Test]
+    public function it_counts_only_entries_access_rules_allow()
+    {
+        Access::register(FakeApplyToEntryQueryRule::class);
+
+        $collection = $this->createCollection('test');
+
+        EntryFactory::collection($collection)->slug('visible')->create();
+        EntryFactory::collection($collection)->slug('secret')->create();
+
+        $this->setTestRoles(['test' => [
+            'access cp',
+            'view test entries',
+        ]]);
+
+        $user = tap(Facades\User::make()->assignRole('test'))->save();
+
+        $this
+            ->actingAs($user)
+            ->get(cp_route('collections.index'))
+            ->assertSuccessful()
+            ->assertInertia(fn ($page) => $page
+                ->component('collections/Index')
+                ->where('collections.0.entries_count', 1)
+            );
     }
 
     #[Test]

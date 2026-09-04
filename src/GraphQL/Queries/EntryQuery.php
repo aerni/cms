@@ -8,7 +8,9 @@ use Facades\Statamic\GraphQL\Middleware\AuthorizeFilters;
 use GraphQL\Type\Definition\Type;
 use Illuminate\Validation\ValidationException;
 use Statamic\Facades;
+use Statamic\Facades\Access;
 use Statamic\Facades\GraphQL;
+use Statamic\Facades\User;
 use Statamic\GraphQL\Middleware\AuthorizeSubResources;
 use Statamic\GraphQL\Queries\Concerns\FiltersQuery;
 use Statamic\GraphQL\Types\EntryInterface;
@@ -72,6 +74,10 @@ class EntryQuery extends Query
         $filters = $args['filter'] ?? [];
 
         $this->filterQuery($query, $filters);
+
+        if ($user = User::current()) {
+            Access::for($user)->can('view')->query($query);
+        }
 
         $entry = $query->limit(1)->get()->first();
 

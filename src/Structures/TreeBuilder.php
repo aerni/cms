@@ -92,6 +92,10 @@ class TreeBuilder
             $collection = $page->mountedCollection();
             $referenceExists = $page->referenceExists();
 
+            if ($referenceExists && ! User::current()->can('view', $page->entry())) {
+                return null;
+            }
+
             return [
                 'id' => $page->id(),
                 'entry' => $page->reference(),
@@ -115,6 +119,6 @@ class TreeBuilder
                 ],
                 'children' => (! empty($item['children'])) ? $this->transformTreeForController($item['children']) : [],
             ];
-        })->values()->all();
+        })->filter()->values()->all();
     }
 }
