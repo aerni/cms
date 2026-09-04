@@ -76,7 +76,7 @@ class EntryQuery extends Query
         $this->filterQuery($query, $filters);
 
         if ($user = User::current()) {
-            Access::for($user)->can('view')->query($query);
+            $query = Access::for($user)->can('view')->query($query);
         }
 
         $entry = $query->limit(1)->get()->first();

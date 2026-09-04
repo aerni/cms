@@ -75,7 +75,7 @@ class EntriesQuery extends Query
         $this->sortQuery($query, $args['sort'] ?? []);
 
         if ($user = User::current()) {
-            Access::for($user)->can('view')->query($query);
+            $query = Access::for($user)->can('view')->query($query);
         }
 
         return $query->paginate($args['limit'] ?? 1000);

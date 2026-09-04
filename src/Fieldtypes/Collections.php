@@ -3,6 +3,7 @@
 namespace Statamic\Fieldtypes;
 
 use Statamic\CP\Column;
+use Statamic\Facades\Access;
 use Statamic\Facades\Collection;
 use Statamic\Facades\GraphQL;
 use Statamic\Facades\User;
@@ -40,10 +41,14 @@ class Collections extends Relationship
             ->filter(fn ($collection) => User::current()->can('view', $collection))
             ->sortBy('title')
             ->map(function ($collection) {
+                $query = Access::for(User::current())->can('view')->query(
+                    $collection->queryEntries()
+                );
+
                 return [
                     'id' => $collection->handle(),
                     'title' => $collection->title(),
-                    'entries' => $collection->queryEntries()->count(),
+                    'entries' => $query->count(),
                 ];
             })->values();
     }

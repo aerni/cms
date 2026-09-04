@@ -33,7 +33,7 @@ class CollectionEntriesController extends ApiController
 
         $query = $collection->queryEntries()->with($with);
 
-        $this->applyAccessRestrictions($query);
+        $query = $this->applyAccessRestrictions($query);
 
         return app(EntryResource::class)::collection(
             $this->updateAndPaginate($query)
@@ -96,13 +96,13 @@ class CollectionEntriesController extends ApiController
         }
     }
 
-    private function applyAccessRestrictions($query): void
+    private function applyAccessRestrictions($query)
     {
         if (! $user = User::current()) {
-            return;
+            return $query;
         }
 
-        Access::for($user)->can('view')->query($query);
+        return Access::for($user)->can('view')->query($query);
     }
 
     protected function allowedFilters()

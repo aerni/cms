@@ -733,8 +733,6 @@ class CollectionsController extends CpController
     {
         $query = $collection->queryEntries()->where('site', Site::selected());
 
-        Access::for(User::current())->can('view')->query($query);
-
-        return $query;
+        return Access::for(User::current())->can('view')->query($query);
     }
 }

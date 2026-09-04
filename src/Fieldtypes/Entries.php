@@ -531,7 +531,7 @@ class Entries extends Relationship
         $query = $this->queryBuilder($values)->whereAnyStatus();
 
         if ($user = User::current()) {
-            Access::for($user)->can('view')->query($query);
+            $query = Access::for($user)->can('view')->query($query);
         }
 
         return $query->get();
@@ -545,7 +545,7 @@ class Entries extends Relationship
             ->when($collections, fn ($query) => $query->whereIn('collection', $collections));
 
         if ($user = User::current()) {
-            Access::for($user)->can('view')->query($query);
+            $query = Access::for($user)->can('view')->query($query);
         }
 
         return $query;
