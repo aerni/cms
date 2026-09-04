@@ -2,21 +2,14 @@
 
 namespace Statamic\Stache\Query;
 
-use Statamic\Contracts\Forms\Submission;
 use Statamic\Contracts\Forms\SubmissionQueryBuilder as QueryBuilderContract;
-use Statamic\Contracts\Query\QueryResource;
 use Statamic\Data\DataCollection;
 use Statamic\Facades;
 use Statamic\Query\OrderBy;
 
-class SubmissionQueryBuilder extends Builder implements QueryBuilderContract, QueryResource
+class SubmissionQueryBuilder extends Builder implements QueryBuilderContract
 {
     protected $forms;
-
-    public function subject(): string
-    {
-        return Submission::class;
-    }
 
     public function where($column, $operator = null, $value = null, $boolean = 'and')
     {

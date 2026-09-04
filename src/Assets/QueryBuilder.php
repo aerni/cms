@@ -3,22 +3,15 @@
 namespace Statamic\Assets;
 
 use Exception;
-use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Assets\AssetContainer;
 use Statamic\Contracts\Assets\QueryBuilder as Contract;
-use Statamic\Contracts\Query\QueryResource;
 use Statamic\Facades;
 use Statamic\Stache\Query\Builder as BaseQueryBuilder;
 use Statamic\Support\Arr;
 
-class QueryBuilder extends BaseQueryBuilder implements Contract, QueryResource
+class QueryBuilder extends BaseQueryBuilder implements Contract
 {
     protected $container;
-
-    public function subject(): string
-    {
-        return Asset::class;
-    }
 
     public function getFilteredKeys()
     {

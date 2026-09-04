@@ -3,17 +3,10 @@
 namespace Statamic\Stache\Query;
 
 use Illuminate\Support\Collection;
-use Statamic\Contracts\Query\QueryResource;
-use Statamic\Contracts\Revisions\Revision;
 use Statamic\Contracts\Revisions\RevisionQueryBuilder as QueryBuilderContract;
 
-class RevisionQueryBuilder extends Builder implements QueryBuilderContract, QueryResource
+class RevisionQueryBuilder extends Builder implements QueryBuilderContract
 {
-    public function subject(): string
-    {
-        return Revision::class;
-    }
-
     protected function collect($items = [])
     {
         return Collection::make($items);

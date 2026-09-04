@@ -3,17 +3,10 @@
 namespace Statamic\Stache\Query;
 
 use Statamic\Auth\UserCollection;
-use Statamic\Contracts\Auth\User as UserContract;
-use Statamic\Contracts\Query\QueryResource;
 use Statamic\Facades\User;
 
-class UserQueryBuilder extends Builder implements QueryResource
+class UserQueryBuilder extends Builder
 {
-    public function subject(): string
-    {
-        return UserContract::class;
-    }
-
     public function whereGroup($value, $operator = '=', $boolean = 'and')
     {
         $this->where('groups/'.$value, $operator, true, $boolean);

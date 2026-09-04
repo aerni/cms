@@ -2,22 +2,15 @@
 
 namespace Statamic\Stache\Query;
 
-use Statamic\Contracts\Query\QueryResource;
-use Statamic\Contracts\Taxonomies\Term;
 use Statamic\Facades;
 use Statamic\Facades\Collection;
 use Statamic\Support\Arr;
 use Statamic\Taxonomies\TermCollection;
 
-class TermQueryBuilder extends Builder implements QueryResource
+class TermQueryBuilder extends Builder
 {
     protected $taxonomies;
     protected $collections;
-
-    public function subject(): string
-    {
-        return Term::class;
-    }
 
     public function where($column, $operator = null, $value = null, $boolean = 'and')
     {
