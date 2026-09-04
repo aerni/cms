@@ -2,7 +2,9 @@
 
 namespace Statamic\GraphQL\Types;
 
+use Statamic\Facades\Access;
 use Statamic\Facades\GraphQL;
+use Statamic\Facades\User;
 use Statamic\Fields\Value;
 
 class CollectionType extends \Rebing\GraphQL\Support\Type
@@ -45,7 +47,13 @@ class CollectionType extends \Rebing\GraphQL\Support\Type
             }
 
             if ($info->fieldName === 'mount') {
-                return $collection->mount();
+                $mount = $collection->mount();
+
+                if ($mount && ($user = User::current()) && ! Access::for($user)->can('view')->resource($mount)) {
+                    return null;
+                }
+
+                return $mount;
             }
 
             $value = $collection->augmentedValue($info->fieldName);
