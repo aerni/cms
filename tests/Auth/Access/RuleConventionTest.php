@@ -6,8 +6,6 @@ use LogicException;
 use PHPUnit\Framework\Attributes\Test;
 use Statamic\Auth\Access\Context\Context;
 use Statamic\Auth\Access\Rules\Rule;
-use Statamic\Contracts\Entries\Collection;
-use Statamic\Contracts\Entries\Entry;
 use Tests\TestCase;
 
 class RuleConventionTest extends TestCase
@@ -16,24 +14,24 @@ class RuleConventionTest extends TestCase
     public function it_derives_operation_from_the_class_name()
     {
         $this->assertSame('view', ViewEntry::operation());
-        $this->assertSame(Entry::class, ViewEntry::resource());
+        $this->assertSame(ConventionFakeResource::class, ViewEntry::resource());
 
         $this->assertSame('edit', EditEntry::operation());
-        $this->assertSame(Entry::class, EditEntry::resource());
+        $this->assertSame(ConventionFakeResource::class, EditEntry::resource());
     }
 
     #[Test]
     public function it_allows_overriding_the_derived_resource()
     {
         $this->assertSame('create', CreateEntry::operation());
-        $this->assertSame(Collection::class, CreateEntry::resource());
+        $this->assertSame(ConventionFakeParentResource::class, CreateEntry::resource());
     }
 
     #[Test]
     public function it_allows_overriding_the_derived_operation()
     {
         $this->assertSame('publish', PreviewEntry::operation());
-        $this->assertSame(Entry::class, PreviewEntry::resource());
+        $this->assertSame(ConventionFakeResource::class, PreviewEntry::resource());
     }
 
     #[Test]
@@ -64,9 +62,19 @@ class RuleConventionTest extends TestCase
     }
 }
 
+class ConventionFakeResource
+{
+    //
+}
+
+class ConventionFakeParentResource
+{
+    //
+}
+
 class ViewEntry extends Rule
 {
-    protected static $resource = Entry::class;
+    protected static $resource = ConventionFakeResource::class;
 
     public function allows(mixed $resource, Context $context): bool
     {
@@ -76,7 +84,7 @@ class ViewEntry extends Rule
 
 class EditEntry extends Rule
 {
-    protected static $resource = Entry::class;
+    protected static $resource = ConventionFakeResource::class;
 
     public function allows(mixed $resource, Context $context): bool
     {
@@ -86,7 +94,7 @@ class EditEntry extends Rule
 
 class CreateEntry extends Rule
 {
-    protected static $resource = Collection::class;
+    protected static $resource = ConventionFakeParentResource::class;
 
     public function allows(mixed $resource, Context $context): bool
     {
@@ -96,7 +104,7 @@ class CreateEntry extends Rule
 
 class PreviewEntry extends Rule
 {
-    protected static $resource = Entry::class;
+    protected static $resource = ConventionFakeResource::class;
 
     protected static $operation = 'publish';
 

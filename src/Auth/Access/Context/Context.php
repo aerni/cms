@@ -40,19 +40,4 @@ class Context
     ): self {
         return (new ContextResolver($user, $operation, $data))->resolveQuery($query);
     }
-
-    public function hasHandle(string $handle): bool
-    {
-        return $this->hasAnyHandle($handle);
-    }
-
-    /**
-     * @param  array<string>|string  $handles
-     */
-    public function hasAnyHandle(array|string $handles): bool
-    {
-        return collect($this->data->get('handles'))
-            ->intersect($handles)
-            ->isNotEmpty();
-    }
 }

@@ -118,8 +118,8 @@ class AccessTest extends TestCase
     {
         Access::register(FakeCollectionSpecificRule::class);
 
-        $this->assertTrue(Access::for(null)->with(['handles' => ['shows']])->can('view')->resource(new FakeResource('allowed', 'shows')));
-        $this->assertFalse(Access::for(null)->with(['handles' => ['pages']])->can('view')->resource(new FakeResource('allowed', 'pages')));
+        $this->assertTrue(Access::for(null)->with(['group' => 'shows'])->can('view')->resource(new FakeResource('allowed', 'shows')));
+        $this->assertFalse(Access::for(null)->with(['group' => 'pages'])->can('view')->resource(new FakeResource('allowed', 'pages')));
     }
 
     #[Test]
@@ -137,8 +137,8 @@ class AccessTest extends TestCase
         Access::register(FakeAllowRule::class);
         Access::register(FakeShowsDenyRule::class);
 
-        $this->assertTrue(Access::for(null)->with(['handles' => ['pages']])->can('view')->resource(new FakeResource('allowed', 'pages')));
-        $this->assertFalse(Access::for(null)->with(['handles' => ['shows']])->can('view')->resource(new FakeResource('allowed', 'shows')));
+        $this->assertTrue(Access::for(null)->with(['group' => 'pages'])->can('view')->resource(new FakeResource('allowed', 'pages')));
+        $this->assertFalse(Access::for(null)->with(['group' => 'shows'])->can('view')->resource(new FakeResource('allowed', 'shows')));
     }
 
     #[Test]
@@ -193,13 +193,13 @@ class AccessTest extends TestCase
     }
 
     #[Test]
-    public function it_uses_context_handles_when_applying_rules_to_queries()
+    public function it_uses_context_data_when_applying_rules_to_queries()
     {
         Access::register(FakeParentApplyToEntryQueryRule::class);
 
         $query = new FakeQuery(['a', 'b', 'c']);
 
-        Access::for(null)->with(['handles' => ['access-parent-test']])->can('view')->query($query);
+        Access::for(null)->with(['group' => 'access-parent-test'])->can('view')->query($query);
 
         $this->assertSame(['a'], $query->ids());
     }
@@ -351,7 +351,7 @@ class FakeCollectionSpecificRule extends Rule
 
     public function shouldApply(Context $context): bool
     {
-        return $context->hasHandle('shows');
+        return $context->data->get('group') === 'shows';
     }
 
     public function allows(mixed $resource, Context $context): bool
@@ -378,7 +378,7 @@ class FakeShowsDenyRule extends Rule
 
     public function shouldApply(Context $context): bool
     {
-        return $context->hasHandle('shows');
+        return $context->data->get('group') === 'shows';
     }
 
     public function allows(mixed $resource, Context $context): bool
@@ -455,7 +455,7 @@ class FakeParentApplyToEntryQueryRule extends Rule
 
     public function shouldApply(Context $context): bool
     {
-        return $context->hasHandle('access-parent-test');
+        return $context->data->get('group') === 'access-parent-test';
     }
 
     public function allows(mixed $resource, Context $context): bool

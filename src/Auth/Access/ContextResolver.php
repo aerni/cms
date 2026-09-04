@@ -4,15 +4,9 @@ namespace Statamic\Auth\Access;
 
 use LogicException;
 use Statamic\Auth\Access\Context\Context;
-use Statamic\Contracts\Assets\Asset;
 use Statamic\Contracts\Auth\User;
-use Statamic\Contracts\Entries\Collection as CollectionContract;
-use Statamic\Contracts\Entries\Entry;
 use Statamic\Contracts\Query\Builder;
 use Statamic\Contracts\Query\QueryResource;
-use Statamic\Contracts\Taxonomies\Term;
-use Statamic\Facades\Collection;
-use Statamic\Facades\Taxonomy;
 
 class ContextResolver
 {
@@ -27,9 +21,8 @@ class ContextResolver
     {
         $resource = $this->ensureResource($resource);
         $subject = is_object($resource) ? $resource::class : $resource;
-        $data = array_merge(['handles' => $this->handlesFromResource($resource)], $this->data);
 
-        return $this->make($subject, $data);
+        return $this->make($subject);
     }
 
     public function resolveQuery(Builder $query): Context
@@ -37,45 +30,21 @@ class ContextResolver
         $query = $this->ensureQuery($query);
         $subject = $this->ensureResource($query->subject());
         $subject = is_object($subject) ? $subject::class : $subject;
-        $data = array_merge(['handles' => $this->handlesFromQuery($query)], $this->data);
 
-        return $this->make($subject, $data);
+        return $this->make($subject);
     }
 
     /**
      * @param  class-string  $subject
      */
-    private function make(string $subject, array $data): Context
+    private function make(string $subject): Context
     {
-        return new Context($this->user, $this->operation, $subject, $data);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function handlesFromQuery(Builder&QueryResource $query): array
-    {
-        $subject = $query->subject();
-
-        return match (true) {
-            $this->isEntry($subject) => $this->collectionHandlesFromQuery($query),
-            $this->isTerm($subject) => $this->taxonomyHandlesFromQuery($query),
-            $this->isAsset($subject) => $this->containerHandlesFromQuery($query),
-            default => [],
-        };
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function handlesFromResource(mixed $resource): array
-    {
-        return match (true) {
-            $this->isEntry($resource) => $this->collectionHandlesFromResource($resource),
-            $this->isTerm($resource) => $this->taxonomyHandlesFromResource($resource),
-            $this->isAsset($resource) => $this->containerHandlesFromResource($resource),
-            default => [],
-        };
+        return new Context(
+            $this->user,
+            $this->operation,
+            $subject,
+            $this->data,
+        );
     }
 
     private function ensureQuery(Builder $query): Builder&QueryResource
@@ -98,83 +67,5 @@ class ContextResolver
         }
 
         throw new LogicException('A resource instance or class string is required to evaluate access.');
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function collectionHandlesFromResource(Entry|CollectionContract $resource): array
-    {
-        return $this->is($resource, Entry::class)
-            ? [$resource->collectionHandle()]
-            : [$resource->handle()];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function collectionHandlesFromQuery(Builder $query): array
-    {
-        $handles = $query->collections();
-
-        return empty($handles)
-            ? Collection::handles()->all()
-            : array_values($handles);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function taxonomyHandlesFromResource(Term $resource): array
-    {
-        return [$resource->taxonomyHandle()];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function taxonomyHandlesFromQuery(Builder $query): array
-    {
-        $handles = $query->taxonomies();
-
-        return empty($handles)
-            ? Taxonomy::handles()->all()
-            : array_values($handles);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function containerHandlesFromResource(Asset $resource): array
-    {
-        return [$resource->containerHandle()];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function containerHandlesFromQuery(Builder $query): array
-    {
-        return [$query->getContainer()->handle()];
-    }
-
-    private function isEntry(mixed $resource): bool
-    {
-        return $this->is($resource, CollectionContract::class) || $this->is($resource, Entry::class);
-    }
-
-    private function isTerm(mixed $resource): bool
-    {
-        return $this->is($resource, Term::class);
-    }
-
-    private function isAsset(mixed $resource): bool
-    {
-        return $this->is($resource, Asset::class);
-    }
-
-    private function is(mixed $resource, string $type): bool
-    {
-        return is_a(is_object($resource) ? $resource::class : $resource, $type, true);
     }
 }
