@@ -175,8 +175,12 @@ class Entries extends Relationship
             $query->orderBy($sort, $this->getSortDirection($request));
         }
 
-        $results = ($paginate = $request->boolean('paginate', true)) ? $query->paginate($request->filled('perPage') ? Statamic::cpPerPage($request->integer('perPage')) : 15) : $query->get();
+        $paginate = $request->boolean('paginate', true);
+        $perPage = $request->filled('perPage') ? Statamic::cpPerPage($request->integer('perPage')) : 15;
 
+        $query = Access::for(User::current())->can('view')->query($query);
+
+        $results = $paginate ? $query->paginate($perPage) : $query->get();
         $items = $results->map(fn ($item) => $item instanceof Result ? $item->getSearchable() : $item);
 
         return $paginate ? $results->setCollection($items) : $items;
@@ -306,11 +310,6 @@ class Entries extends Relationship
             'collection',
             $this->getViewableCollections($this->getConfiguredCollections())->map->handle()->all()
         );
-    }
-
-    protected function applyIndexAccessRules($query, $params): void
-    {
-        Access::for(User::current())->can('view')->query($query);
     }
 
     private function toSearchQuery($query, $request)
@@ -529,15 +528,27 @@ class Entries extends Relationship
 
     protected function getItemsForPreProcessIndex($values): SupportCollection
     {
-        return $this->queryBuilder($values)->whereAnyStatus()->get();
+        $query = $this->queryBuilder($values)->whereAnyStatus();
+
+        if ($user = User::current()) {
+            Access::for($user)->can('view')->query($query);
+        }
+
+        return $query->get();
     }
 
     public function relationshipQueryBuilder()
     {
         $collections = $this->getConfiguredCollections();
 
-        return Entry::query()
+        $query = Entry::query()
             ->when($collections, fn ($query) => $query->whereIn('collection', $collections));
+
+        if ($user = User::current()) {
+            Access::for($user)->can('view')->query($query);
+        }
+
+        return $query;
     }
 
     public function filter()
