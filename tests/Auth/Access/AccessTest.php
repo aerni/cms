@@ -69,12 +69,17 @@ class AccessTest extends TestCase
     }
 
     #[Test]
-    public function it_requires_an_access_queryable_query_before_applying_rules()
+    public function it_wraps_non_query_resource_builders_instead_of_applying_query_rules()
     {
-        $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('The query must implement ['.QueryResource::class.'] to apply access rules.');
+        Access::register(FakeAllowRule::class);
 
-        Access::for(null)->can('view')->query(new FakePlainQuery);
+        $query = Access::for(null)->can('view')->query(new FakePlainSearchQuery([
+            new FakeResource('allowed'),
+            new FakeResource('denied'),
+        ]));
+
+        $this->assertInstanceOf(\Statamic\Query\FilteredQueryBuilder::class, $query);
+        $this->assertSame(['allowed'], $query->get()->map->id->all());
     }
 
     #[Test]
@@ -151,6 +156,34 @@ class AccessTest extends TestCase
         Access::for(null)->can('view')->query($query);
 
         $this->assertSame(['a', 'c'], $query->ids());
+    }
+
+    #[Test]
+    public function it_filters_hydrated_results_by_resource_access()
+    {
+        Access::register(FakeAllowRule::class);
+
+        $items = Access::for(null)->can('view')->query(new FakePlainSearchQuery([
+            new FakeResource('allowed'),
+            new FakeResource('denied'),
+        ]))->get();
+
+        $this->assertSame(['allowed'], $items->map->id->all());
+    }
+
+    #[Test]
+    public function it_paginates_non_query_resource_builders_by_filtering_results()
+    {
+        Access::register(FakeAllowRule::class);
+
+        $page = Access::for(null)->can('view')->query(new FakePlainSearchQuery([
+            new FakeResource('allowed'),
+            new FakeResource('denied'),
+            new FakeResource('allowed'),
+        ]))->paginate(10);
+
+        $this->assertSame(['allowed', 'allowed'], $page->getCollection()->map->id->all());
+        $this->assertSame(2, $page->total());
     }
 
     #[Test]
@@ -264,6 +297,18 @@ class FakeResource extends FakeResourceContract
 class FakePlainQuery implements QueryBuilder
 {
     //
+}
+
+class FakePlainSearchQuery implements QueryBuilder
+{
+    public function __construct(private array $items)
+    {
+    }
+
+    public function get($columns = ['*'])
+    {
+        return collect($this->items);
+    }
 }
 
 class FakeQuery implements QueryBuilder, QueryResource

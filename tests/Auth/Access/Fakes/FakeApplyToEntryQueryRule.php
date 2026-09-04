@@ -14,7 +14,7 @@ class FakeApplyToEntryQueryRule extends Rule
 
     public function allows(mixed $resource, Context $context): bool
     {
-        return true;
+        return $resource->slug() !== 'secret';
     }
 
     public function apply(Builder $query, Context $context): void

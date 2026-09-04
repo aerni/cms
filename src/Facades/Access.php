@@ -15,6 +15,7 @@ use Statamic\Contracts\Auth\Access\Rule;
  * @method static \Illuminate\Support\Collection<int, Rule> rules(\Statamic\Auth\Access\Context\Context $context)
  *
  * @see AccessRepository
+ * @see AccessBuilder
  */
 class Access extends Facade
 {

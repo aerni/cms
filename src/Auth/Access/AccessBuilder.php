@@ -2,12 +2,16 @@
 
 namespace Statamic\Auth\Access;
 
+use Illuminate\Support\Collection;
 use LogicException;
 use Statamic\Auth\Access\Context\Context;
 use Statamic\Contracts\Auth\Access\Rule;
 use Statamic\Contracts\Auth\User;
 use Statamic\Contracts\Query\Builder;
+use Statamic\Contracts\Query\QueryResource;
+use Statamic\Contracts\Search\Result;
 use Statamic\Facades\Access;
+use Statamic\Query\FilteredQueryBuilder;
 
 class AccessBuilder
 {
@@ -53,6 +57,10 @@ class AccessBuilder
 
     public function query(Builder $query): Builder
     {
+        if (! $query instanceof QueryResource) {
+            return new FilteredQueryBuilder($query, fn (iterable $items) => $this->results($items));
+        }
+
         $context = Context::fromQuery($query, $this->operation(), $this->user, $this->data);
 
         $rules = Access::rules($context);
@@ -82,5 +90,19 @@ class AccessBuilder
         }
 
         return $this->operation;
+    }
+
+    /**
+     * Filter hydrated items by resource access (e.g. search results that cannot take query rules).
+     */
+    private function results(iterable $items): Collection
+    {
+        return collect($items)
+            ->filter(function ($item) {
+                $resource = $item instanceof Result ? $item->getSearchable() : $item;
+
+                return $this->resource($resource);
+            })
+            ->values();
     }
 }
