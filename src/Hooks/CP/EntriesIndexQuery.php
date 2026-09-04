@@ -22,10 +22,6 @@ class EntriesIndexQuery
             'collection' => $this->collection,
         ]);
 
-        $query = $payload->query;
-
-        Access::for(User::current())->can('view')->query($query);
-
-        return $query->paginate($perPage);
+        return Access::for(User::current())->can('view')->query($payload->query)->paginate($perPage);
     }
 }
