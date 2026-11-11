@@ -345,8 +345,11 @@ class Asset implements Arrayable, ArrayAccess, AssetContract, Augmentable, Conta
      * Drop the path from the listing and, when assets are indexed in the Stache,
      * from that index. Stored asset data stays put: this does not go through the
      * asset repository, whose eloquent implementation deletes the meta row.
+     *
+     * Callers confirm the file is absent first. A timeout or a 403 from that
+     * check has to propagate instead of being treated as a missing file.
      */
-    private function forgetMissingFile(): void
+    public function forgetMissingFile(): void
     {
         $this->meta = null;
         $this->cacheStore()->forget($this->metaCacheKey());

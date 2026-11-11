@@ -7,19 +7,25 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
+use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Local\LocalFilesystemAdapter;
+use League\Flysystem\UnableToCheckExistence;
 use League\Flysystem\UnableToReadFile;
 use League\Glide\Manipulators\Watermark;
 use League\Glide\Server;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
+use Statamic\Assets\AssetRepository;
+use Statamic\Contracts\Assets\AssetRepository as AssetRepositoryContract;
 use Statamic\Events\GlideImageGenerated;
 use Statamic\Exceptions\InvalidRemoteUrlException;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\File;
 use Statamic\Facades\Glide;
+use Statamic\Facades\YAML;
 use Statamic\Imaging\GuzzleAdapter;
 use Statamic\Imaging\ImageGenerator;
 use Statamic\Imaging\RemoteUrlValidator;
@@ -133,9 +139,117 @@ class ImageGeneratorTest extends TestCase
 
         ImageValidator::shouldReceive('isValidImage')->andReturnFalse();
 
-        $this->expectException(UnableToReadFile::class);
+        try {
+            $this->makeGenerator()->generateByAsset($asset, ['w' => 100]);
+            $this->fail('Exception was not thrown.');
+        } catch (UnableToReadFile) {
+            $this->assertTrue(Cache::get('asset-list-contents-test_container')->has('foo/hoff.jpg'));
+        }
+    }
 
-        $this->makeGenerator()->generateByAsset($asset, ['w' => 100]);
+    #[Test]
+    public function it_keeps_a_listed_asset_when_the_existence_check_throws()
+    {
+        Storage::fake('test');
+        $file = UploadedFile::fake()->image('foo/hoff.jpg', 30, 60);
+        Storage::disk('test')->putFileAs('foo', $file, 'hoff.jpg');
+        $container = tap(AssetContainer::make('test_container')->disk('test'))->save();
+        $asset = tap($container->makeAsset('foo/hoff.jpg'))->save();
+        $asset->meta();
+
+        $driver = \Mockery::mock(FilesystemOperator::class);
+        $driver->shouldReceive('fileExists')->andThrow(UnableToCheckExistence::forLocation('foo/hoff.jpg'));
+
+        $filesystem = \Mockery::mock(\Illuminate\Filesystem\FilesystemAdapter::class);
+        $filesystem->shouldReceive('getDriver')->andReturn($driver);
+        $filesystem->shouldReceive('exists')->andThrow(UnableToCheckExistence::forLocation('foo/hoff.jpg'));
+
+        $container->disk($filesystem);
+
+        ImageValidator::shouldReceive('isValidImage')->andReturnTrue();
+
+        try {
+            $this->makeGenerator()->generateByAsset($asset, ['w' => 100]);
+            $this->fail('Exception was not thrown.');
+        } catch (UnableToCheckExistence) {
+            $this->assertTrue(Cache::get('asset-list-contents-test_container')->has('foo/hoff.jpg'));
+
+            return;
+        }
+
+        $this->fail('Existence check exception was not thrown.');
+    }
+
+    #[Test]
+    public function it_drops_a_missing_asset_and_keeps_its_stored_data_when_assets_are_eloquent()
+    {
+        config(['statamic.eloquent-driver.assets.driver' => 'eloquent']);
+
+        $repository = $this->partialMock(AssetRepository::class);
+        $repository->shouldNotReceive('delete');
+        $this->instance(AssetRepositoryContract::class, $repository);
+
+        Storage::fake('test');
+        $file = UploadedFile::fake()->image('foo/hoff.jpg', 30, 60);
+        Storage::disk('test')->putFileAs('foo', $file, 'hoff.jpg');
+        $container = tap(AssetContainer::make('test_container')->disk('test'))->save();
+        $asset = $container->makeAsset('foo/hoff.jpg');
+        $asset->data(['alt' => 'Event poster'])->save();
+        $asset = $container->asset('foo/hoff.jpg');
+
+        $this->assertArrayHasKey('size', $asset->meta());
+        $this->assertArrayHasKey('mime_type', $asset->meta());
+
+        Storage::disk('test')->delete('foo/hoff.jpg');
+
+        ImageValidator::shouldReceive('isValidImage')->andReturnTrue();
+
+        try {
+            $this->makeGenerator()->generateByAsset($asset, ['w' => 100]);
+            $this->fail('Exception was not thrown.');
+        } catch (UnableToReadFile) {
+            $this->assertFalse(Cache::get('asset-list-contents-test_container')->has('foo/hoff.jpg'));
+            $this->assertSame(
+                'Event poster',
+                YAML::parse(Storage::disk('test')->get('foo/.meta/hoff.jpg.yaml'))['data']['alt']
+            );
+
+            return;
+        }
+
+        $this->fail('Exception was not thrown.');
+    }
+
+    #[Test]
+    public function it_does_not_drop_an_asset_when_a_later_url_read_fails()
+    {
+        Storage::fake('test');
+        $file = UploadedFile::fake()->image('foo/hoff.jpg', 30, 60);
+        Storage::disk('test')->putFileAs('foo', $file, 'hoff.jpg');
+        $container = tap(AssetContainer::make('test_container')->disk('test'))->save();
+        $asset = tap($container->makeAsset('foo/hoff.jpg'))->save();
+
+        ImageValidator::shouldReceive('isValidImage')->andReturnTrue();
+
+        $generator = $this->makeGenerator();
+        $generator->generateByAsset($asset, ['w' => 100]);
+
+        Storage::disk('test')->delete('foo/hoff.jpg');
+
+        $this->app->bind('statamic.imaging.guzzle', function () {
+            return new Client(['handler' => new MockHandler([
+                new Response(404),
+                new Response(404),
+                new Response(404),
+            ])]);
+        });
+
+        try {
+            $generator->generateByUrl('https://example.com/missing.jpg', ['w' => 100]);
+            $this->fail('Exception was not thrown.');
+        } catch (UnableToReadFile) {
+            $this->assertTrue(Cache::get('asset-list-contents-test_container')->has('foo/hoff.jpg'));
+        }
     }
 
     #[Test]

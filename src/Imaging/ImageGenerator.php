@@ -90,6 +90,7 @@ class ImageGenerator
 
     private function doGenerateByPath($path, array $params, $sourceFilesystemRoot = null)
     {
+        $this->asset = null;
         $this->path = $path;
         $this->setParams($params);
 
@@ -116,6 +117,7 @@ class ImageGenerator
 
     private function doGenerateByUrl($url, array $params)
     {
+        $this->asset = null;
         $this->skip_validation = true;
         $this->setParams($params);
 
@@ -318,12 +320,28 @@ class ImageGenerator
         try {
             $path = $this->server->makeImage($image, $this->params);
         } catch (GlideFileNotFoundException $e) {
+            $this->forgetAssetWhenSourceIsMissing();
+
             throw UnableToReadFile::fromLocation($image);
         }
 
         GlideImageGenerated::dispatch($path, $this->params);
 
         return $path;
+    }
+
+    /**
+     * Glide reports a missing source when the existence check itself fails.
+     * Drop the asset only after the disk confirms the file is gone. A timeout
+     * or a 403 from that check propagates, and an invalid image never reaches here.
+     */
+    private function forgetAssetWhenSourceIsMissing(): void
+    {
+        if (! $this->asset || $this->asset->disk()->exists($this->asset->path())) {
+            return;
+        }
+
+        $this->asset->forgetMissingFile();
     }
 
     /**
